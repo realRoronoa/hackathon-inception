@@ -1,9 +1,18 @@
 import type { MovementDirection, LookDirection } from '../types/simulation';
 import type { IVideoEngine, VideoStreamSource } from './videoEngine';
 
-// Reliable public looping video demo URLs (CORS and format tested)
-const PLACEHOLDER_VIDEO_URL =
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+// High-definition public cinematic environment feeds for different world prompts
+const PRESET_VIDEO_SOURCES: Record<string, string> = {
+  'abandoned orbital station':
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+  'victorian manor':
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  'cyberpunk alley':
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+};
+
+const DEFAULT_VIDEO_URL =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4';
 
 export class MockVideoEngine implements IVideoEngine {
   private initTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -16,18 +25,28 @@ export class MockVideoEngine implements IVideoEngine {
     console.log(`[MOCK VIDEO] Initializing stream with prompt: "${prompt}"...`);
 
     return new Promise((resolve) => {
-      // Clear existing pending timeouts if any
       if (this.initTimeoutId) {
         clearTimeout(this.initTimeoutId);
+      }
+
+      // Pick corresponding world video source or default
+      const normalizedPrompt = prompt.toLowerCase();
+      let selectedVideoUrl = DEFAULT_VIDEO_URL;
+
+      for (const [key, url] of Object.entries(PRESET_VIDEO_SOURCES)) {
+        if (normalizedPrompt.includes(key)) {
+          selectedVideoUrl = url;
+          break;
+        }
       }
 
       this.initTimeoutId = setTimeout(() => {
         this.isConnected = true;
         this.initTimeoutId = null;
-        console.log('[MOCK VIDEO] Stream initialized successfully. Ready to play.');
-        onStreamReady(PLACEHOLDER_VIDEO_URL);
+        console.log(`[MOCK VIDEO] Stream initialized with URL: ${selectedVideoUrl}`);
+        onStreamReady(selectedVideoUrl);
         resolve();
-      }, 2500);
+      }, 1800);
     });
   }
 
@@ -53,3 +72,5 @@ export class MockVideoEngine implements IVideoEngine {
     return this.isConnected;
   }
 }
+
+export default MockVideoEngine;
