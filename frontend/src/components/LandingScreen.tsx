@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mic,
   MicOff,
   ArrowRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useVoicePrompt } from '../hooks/useVoicePrompt';
+import { LogbookModal } from './LogbookModal';
+import type { SnapshotItem } from './LogbookModal';
 
 interface LandingScreenProps {
   onStartSimulation: (prompt: string) => void;
@@ -57,6 +60,21 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
   onToggleLiveMode,
 }) => {
   const [prompt, setPrompt] = useState('');
+  const [isLogbookOpen, setIsLogbookOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
+
+  // Load saved snapshots from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('inception_snapshots') || '[]';
+      setSnapshots(JSON.parse(raw));
+    } catch {}
+  }, [isLogbookOpen]);
+
+  const handleClearSnapshots = () => {
+    localStorage.removeItem('inception_snapshots');
+    setSnapshots([]);
+  };
 
   // Native Web Speech Recognition hook
   const {
@@ -106,6 +124,14 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
         backgroundPosition: 'center -1px',
       }}
     >
+      {/* Logbook Gallery Modal */}
+      <LogbookModal
+        isOpen={isLogbookOpen}
+        onClose={() => setIsLogbookOpen(false)}
+        snapshots={snapshots}
+        onClear={handleClearSnapshots}
+      />
+
       {/* 1. TOP BAR */}
       <header
         className="w-full flex items-center justify-between px-6 sm:px-10 py-5 border-b"
@@ -136,29 +162,48 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
           </div>
         </div>
 
-        {/* Interactive Mode Toggle Pill */}
-        <button
-          type="button"
-          onClick={() => onToggleLiveMode(!isLiveMode)}
-          className="flex items-center gap-2 px-3.5 py-1.5 text-[11px] tracking-wider transition-all duration-200 active:scale-95 cursor-pointer"
-          style={{
-            fontFamily: "'IBM Plex Mono', monospace",
-            backgroundColor: isLiveMode ? 'rgba(240,169,63,0.12)' : 'rgba(79,216,232,0.12)',
-            borderColor: isLiveMode ? 'rgba(240,169,63,0.35)' : 'rgba(79,216,232,0.35)',
-            borderWidth: '1px',
-            borderStyle: 'solid',
-            color: isLiveMode ? '#F0A93F' : '#4FD8E8',
-          }}
-          title="Click to toggle between Live Reactor API and Free Mock Engine"
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full animate-pulse"
-            style={{ backgroundColor: isLiveMode ? '#F0A93F' : '#4FD8E8' }}
-          />
-          <span className="font-medium">
-            {isLiveMode ? 'LIVE REACTOR API' : 'FREE MOCK MODE (0 CREDITS)'}
-          </span>
-        </button>
+        {/* Right Tools */}
+        <div className="flex items-center gap-3">
+          {/* Flight Logbook Button */}
+          <button
+            type="button"
+            onClick={() => setIsLogbookOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-[11px] tracking-wider border text-[#8E9AAE] hover:text-[#E7ECF3] hover:border-[#4FD8E8] transition-all"
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              borderColor: 'rgba(150,170,200,0.18)',
+              backgroundColor: 'rgba(16,21,29,0.8)',
+            }}
+            title="Open Mission Logbook (Past Snapshots)"
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-[#4FD8E8]" />
+            <span>LOGBOOK ({snapshots.length})</span>
+          </button>
+
+          {/* Interactive Mode Toggle Pill */}
+          <button
+            type="button"
+            onClick={() => onToggleLiveMode(!isLiveMode)}
+            className="flex items-center gap-2 px-3.5 py-1.5 text-[11px] tracking-wider transition-all duration-200 active:scale-95 cursor-pointer"
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              backgroundColor: isLiveMode ? 'rgba(240,169,63,0.12)' : 'rgba(79,216,232,0.12)',
+              borderColor: isLiveMode ? 'rgba(240,169,63,0.35)' : 'rgba(79,216,232,0.35)',
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              color: isLiveMode ? '#F0A93F' : '#4FD8E8',
+            }}
+            title="Click to toggle between Live Reactor API and Free Mock Engine"
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ backgroundColor: isLiveMode ? '#F0A93F' : '#4FD8E8' }}
+            />
+            <span className="font-medium">
+              {isLiveMode ? 'LIVE REACTOR API' : 'FREE MOCK MODE (0 CREDITS)'}
+            </span>
+          </button>
+        </div>
       </header>
 
       {/* 2. HERO SECTION */}
