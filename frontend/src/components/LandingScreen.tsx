@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mic, ArrowRight, Sparkles } from 'lucide-react';
+import { Mic, MicOff, ArrowRight, Sparkles, Radio } from 'lucide-react';
+import { useVoicePrompt } from '../hooks/useVoicePrompt';
 
 interface LandingScreenProps {
   onStartSimulation: (prompt: string) => void;
@@ -13,10 +14,22 @@ const PRESET_WORLDS = [
 
 export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation }) => {
   const [prompt, setPrompt] = useState('');
-  const [isListening, setIsListening] = useState(false);
+
+  // Native Web Speech Recognition hook
+  const {
+    isListening,
+    isSupported,
+    startListening,
+    stopListening,
+  } = useVoicePrompt((dictatedText) => {
+    setPrompt(dictatedText);
+  });
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isListening) {
+      stopListening();
+    }
     const trimmed = prompt.trim();
     if (trimmed) {
       onStartSimulation(trimmed);
@@ -27,11 +40,11 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation 
     setPrompt(preset);
   };
 
-  const toggleMic = () => {
-    setIsListening((prev) => !prev);
-    // Voice dictation simulation / integration placeholder (Willow)
-    if (!isListening && !prompt) {
-      setPrompt('Neon-lit subterranean biosphere');
+  const toggleVoiceDictation = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
     }
   };
 
@@ -54,37 +67,64 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation 
             Inception Engine
           </h1>
           <p className="text-sm md:text-base text-zinc-400 font-light max-w-md mx-auto">
-            Step into infinite real-time generative worlds driven by your movement.
+            Step into infinite real-time generative worlds driven by your voice and keyboard.
           </p>
         </div>
 
         {/* Input Form Box */}
         <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div className="relative group w-full">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-zinc-700 via-zinc-600 to-zinc-700 rounded-2xl blur-sm opacity-25 group-focus-within:opacity-75 transition duration-500" />
+            <div className={`absolute -inset-0.5 rounded-2xl blur-sm transition duration-500 ${
+              isListening
+                ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-rose-600 opacity-85 animate-pulse'
+                : 'bg-gradient-to-r from-zinc-700 via-zinc-600 to-zinc-700 opacity-25 group-focus-within:opacity-75'
+            }`} />
             
-            <div className="relative flex items-center bg-zinc-950/90 border border-zinc-800/80 rounded-2xl shadow-2xl backdrop-blur-xl p-2 transition-colors duration-300 focus-within:border-zinc-500">
+            <div className={`relative flex items-center bg-zinc-950/90 border rounded-2xl shadow-2xl backdrop-blur-xl p-2 transition-colors duration-300 ${
+              isListening
+                ? 'border-rose-500/70 shadow-[0_0_30px_rgba(244,63,94,0.2)]'
+                : 'border-zinc-800/80 focus-within:border-zinc-500'
+            }`}>
               <input
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the world you want to step into..."
+                placeholder={isListening ? "Listening to your voice..." : "Describe the world you want to step into..."}
                 className="w-full bg-transparent px-4 py-3.5 text-base md:text-lg text-zinc-100 placeholder-zinc-500 focus:outline-none font-light"
                 autoFocus
               />
 
-              {/* Mic Icon Button (Willow dictation) */}
+              {/* Voice Dictation Button (Native Web Speech API) */}
               <button
                 type="button"
-                onClick={toggleMic}
-                title={isListening ? "Listening (Willow)..." : "Voice Dictation (Willow)"}
-                className={`p-2.5 rounded-xl transition-all duration-200 mr-2 flex items-center justify-center ${
+                onClick={toggleVoiceDictation}
+                title={
+                  !isSupported
+                    ? "Speech Recognition not supported in this browser"
+                    : isListening
+                    ? "Stop listening"
+                    : "Dictate prompt via microphone"
+                }
+                disabled={!isSupported}
+                className={`relative p-2.5 rounded-xl transition-all duration-200 mr-2 flex items-center justify-center ${
                   isListening
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                    ? 'bg-rose-500/25 text-rose-300 border border-rose-500/60 shadow-[0_0_20px_rgba(244,63,94,0.4)] animate-pulse'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30'
                 }`}
               >
-                <Mic className="w-5 h-5" />
+                {isListening ? (
+                  <>
+                    <Mic className="w-5 h-5 text-rose-400 animate-bounce" />
+                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+                    </span>
+                  </>
+                ) : !isSupported ? (
+                  <MicOff className="w-5 h-5" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
               </button>
 
               {/* Sleek Primary Enter Button */}
@@ -106,7 +146,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation 
                 key={preset}
                 type="button"
                 onClick={() => handleSelectPreset(preset)}
-                className="px-3.5 py-1.5 rounded-full text-xs font-mono tracking-wide border border-zinc-800/90 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800/60 transition-all duration-200 backdrop-blur-sm"
+                className="px-3.5 py-1.5 rounded-full text-xs font-mono tracking-wide border border-zinc-800/90 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800/60 transition-all duration-200 backdrop-blur-sm active:scale-95"
               >
                 {preset}
               </button>
@@ -115,8 +155,11 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation 
         </form>
 
         {/* Footer Hint */}
-        <div className="pt-8 text-xs text-zinc-600 font-mono">
-          <span>WASD / Arrow Keys Controller enabled</span>
+        <div className="pt-8 flex items-center justify-center gap-3 text-xs text-zinc-600 font-mono">
+          <div className="flex items-center gap-1.5">
+            <Radio className="w-3 h-3 text-zinc-500" />
+            <span>Voice Dictation & WASD Controller Active</span>
+          </div>
         </div>
       </div>
     </div>
