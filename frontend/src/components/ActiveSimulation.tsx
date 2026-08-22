@@ -184,7 +184,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 2. Video Stream Rendering */}
       {isLiveMode && reactorJwt ? (
         <ReactorProvider
-          modelName="lingbot"
+          modelName="reactor/lingbot"
           apiUrl="https://api.reactor.inc"
           jwtToken={reactorJwt}
           connectOptions={{ autoConnect: true }}

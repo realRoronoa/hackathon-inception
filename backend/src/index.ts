@@ -42,7 +42,7 @@ app.post('/api/reactor-token', async (req: Request, res: Response): Promise<void
         authorization_details: [
           {
             type: 'session',
-            resources: { models: { match: ['lingbot'] } },
+            resources: { models: { match: ['reactor/lingbot', 'lingbot'] } },
           },
         ],
       },

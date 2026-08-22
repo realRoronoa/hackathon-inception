@@ -21,7 +21,7 @@ async function resolveReactorJwt(apiKey: string): Promise<string> {
         authorization_details: [
           {
             type: 'session',
-            resources: { models: { match: ['lingbot'] } },
+            resources: { models: { match: ['reactor/lingbot', 'lingbot'] } },
           },
         ],
       }),
@@ -133,16 +133,16 @@ export class ReactorEngine implements IVideoEngine {
   ): Promise<void> {
     const apiKey = import.meta.env.VITE_REACTOR_API_KEY || '';
 
-    console.log(`[REACTOR ENGINE] Exchanging API key and initializing Reactor client with model: "lingbot"...`);
+    console.log(`[REACTOR ENGINE] Exchanging API key and initializing Reactor client with model: "reactor/lingbot"...`);
 
     try {
       // 1. Exchange API Key for scoped JWT token
       const jwtToken = await resolveReactorJwt(apiKey);
       console.log('[REACTOR ENGINE] Successfully acquired scoped JWT token.');
 
-      // 2. Initialize Reactor client instance
+      // 2. Initialize Reactor client instance with official slug
       this.client = new Reactor({
-        modelName: 'lingbot',
+        modelName: 'reactor/lingbot',
         apiUrl: 'https://api.reactor.inc',
       });
 
@@ -170,39 +170,47 @@ export class ReactorEngine implements IVideoEngine {
         console.log('[REACTOR ENGINE] Model message received:', JSON.stringify(msg));
       });
 
-      this.client.on('runtimeMessage', (msg: any) => {
-        console.log('[REACTOR ENGINE] Runtime message received:', JSON.stringify(msg));
+      // Promise to wait for status "ready"
+      const waitForReady = new Promise<void>((resolve) => {
+        if (this.client?.getStatus() === 'ready') {
+          resolve();
+        } else {
+          const handler = (status: string) => {
+            if (status === 'ready') {
+              this.client?.off('statusChanged', handler);
+              resolve();
+            }
+          };
+          this.client?.on('statusChanged', handler);
+        }
       });
 
       // 4. Establish WebRTC connection using JWT token
       await this.client.connect(jwtToken);
-      console.log('[REACTOR ENGINE] WebRTC peer connection established.');
+      console.log('[REACTOR ENGINE] WebRTC peer connection established, waiting for ready status...');
+
+      await waitForReady;
+      console.log('[REACTOR ENGINE] Connection ready. Staging seed image and prompt...');
 
       // 5. Upload seed image to anchor LingBot neural generation
       try {
-        console.log('[REACTOR ENGINE] Creating and uploading seed image for prompt:', prompt);
         const seedBlob = await createSeedImageBlob(prompt);
         const file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
         const imageRef = await this.client.uploadFile(file);
-        console.log('[REACTOR ENGINE] Seed image uploaded successfully:', imageRef);
+        console.log('[REACTOR ENGINE] Seed image uploaded:', imageRef);
 
-        // 6. Send set_image and set_prompt
         await this.client.sendCommand('set_image', { image: imageRef });
         console.log('[REACTOR ENGINE] Sent set_image command.');
       } catch (uploadErr) {
-        console.warn('[REACTOR ENGINE] Seed image upload note:', uploadErr);
+        console.warn('[REACTOR ENGINE] Seed image upload warning:', uploadErr);
       }
 
       await this.client.sendCommand('set_prompt', { prompt });
-      console.log(`[REACTOR ENGINE] Sent world prompt: "${prompt}"`);
+      console.log(`[REACTOR ENGINE] Sent set_prompt: "${prompt}"`);
 
-      // 7. Trigger the start command to begin real-time neural frame generation
-      try {
-        await this.client.sendCommand('start', {});
-        console.log('[REACTOR ENGINE] Sent start command to LingBot.');
-      } catch (startErr) {
-        console.warn('[REACTOR ENGINE] Start command note:', startErr);
-      }
+      // 6. Trigger start command to begin generation
+      await this.client.sendCommand('start', {});
+      console.log('[REACTOR ENGINE] Sent start command to LingBot.');
     } catch (error) {
       console.error('[REACTOR ENGINE] Failed to initialize Reactor stream:', error);
       throw error;
@@ -210,20 +218,42 @@ export class ReactorEngine implements IVideoEngine {
   }
 
   public sendMovement(direction: MovementDirection): void {
-    if (!this.client) return;
+    if (!this.client || this.client.getStatus() !== 'ready') return;
     try {
-      this.client.sendCommand('set_movement', { direction, movement: direction });
-      console.log('[REACTOR ENGINE] Sent movement ->', direction);
+      // Map to official LingBot wire protocol: "idle" | "forward" | "back" | "strafe_left" | "strafe_right"
+      const movementValue =
+        direction === 'forward'
+          ? 'forward'
+          : direction === 'backward'
+          ? 'back'
+          : direction === 'left'
+          ? 'strafe_left'
+          : direction === 'right'
+          ? 'strafe_right'
+          : 'idle';
+
+      this.client.sendCommand('set_movement', { movement: movementValue });
+      console.log('[REACTOR ENGINE] Sent set_movement ->', movementValue);
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to send movement:', err);
     }
   }
 
   public sendLook(direction: LookDirection): void {
-    if (!this.client) return;
+    if (!this.client || this.client.getStatus() !== 'ready') return;
     try {
-      this.client.sendCommand('set_look', { direction, look: direction });
-      console.log('[REACTOR ENGINE] Sent look ->', direction);
+      // Map to official LingBot wire protocol: set_look_horizontal & set_look_vertical
+      if (direction === 'left' || direction === 'right' || direction === 'idle') {
+        const horizontalValue = direction === 'left' ? 'left' : direction === 'right' ? 'right' : 'idle';
+        this.client.sendCommand('set_look_horizontal', { look_horizontal: horizontalValue });
+        console.log('[REACTOR ENGINE] Sent set_look_horizontal ->', horizontalValue);
+      }
+
+      if (direction === 'up' || direction === 'down' || direction === 'idle') {
+        const verticalValue = direction === 'up' ? 'up' : direction === 'down' ? 'down' : 'idle';
+        this.client.sendCommand('set_look_vertical', { look_vertical: verticalValue });
+        console.log('[REACTOR ENGINE] Sent set_look_vertical ->', verticalValue);
+      }
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to send look:', err);
     }
