@@ -1,5 +1,5 @@
 /**
- * Master Style Modifier and Prompt Expansion Engine for Inception World Models
+ * Master Style Modifier and Intelligent Scenario Expansion Engine
  */
 export const MASTER_STYLE_SUFFIX =
   'cinematic exploration aesthetic, high-end sci-fi atmosphere, dramatic volumetric lighting, hyper-detailed textures, cohesive color grading, photorealistic 8k';
@@ -22,11 +22,27 @@ export function applyMasterTheme(userPrompt: string): string {
 }
 
 /**
- * Expands short phrases into rich, cinematic generative world descriptions
+ * Expands short phrases, creative concepts, AND product testing scenarios
+ * into rich, steerable generative world descriptions.
  */
 export function expandCinematicPrompt(shortInput: string): string {
   const input = (shortInput || '').trim().toLowerCase();
 
+  // 1. Scenario & Product Testing Intelligence
+  if (
+    input.includes('test') ||
+    input.includes('product') ||
+    input.includes('simulate') ||
+    input.includes('showroom') ||
+    input.includes('drone') ||
+    input.includes('car') ||
+    input.includes('device') ||
+    input.includes('store')
+  ) {
+    return `First-person interactive simulation environment designed for testing: ${shortInput.trim()}, featuring realistic environmental dynamics, dynamic crowd reflections, volumetric lighting, and deep spatial scale`;
+  }
+
+  // 2. Specific Thematic Keywords
   const EXPANSIONS: { keywords: string[]; prompt: string }[] = [
     {
       keywords: ['cyber', 'neon', 'city', 'tokyo', 'alley'],
@@ -61,12 +77,12 @@ export function expandCinematicPrompt(shortInput: string): string {
     }
   }
 
-  // If no specific keyword matched, creatively augment whatever the user typed
+  // 3. Generic Custom Augmentation
   if (input.length > 0) {
     return `${shortInput.trim()} featuring expansive panoramic scale, intricate architectural detail, volumetric mist, and dramatic cinematic lighting`;
   }
 
-  // If completely empty, pick a breathtaking random sci-fi scene
+  // 4. Random Discovery Seeds
   const RANDOM_SEEDS = [
     'Sub-zero Antarctic research citadel buried beneath glacial ice caves with glowing thermal power conduits',
     'Floating monolith temples above cloud oceans with ancient anti-gravity rings and golden dawn light',
