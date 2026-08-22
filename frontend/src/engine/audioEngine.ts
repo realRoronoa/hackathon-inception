@@ -15,7 +15,12 @@ export interface IAudioEngine {
   /**
    * Plays text-to-speech audio narration for environmental events or guides
    */
-  playNarration(text: string): Promise<void> | void;
+  playNarration(text: string, onComplete?: () => void): Promise<void> | void;
+
+  /**
+   * Toggles master audio mute state
+   */
+  setMuted(isMuted: boolean): void;
 
   /**
    * Stops all playing and queued audio

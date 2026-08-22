@@ -10,6 +10,7 @@ export class MockAudioEngine implements IAudioEngine {
   private movementGain: GainNode | null = null;
   private movementOscillator: OscillatorNode | null = null;
   private isMovementOscillatorStarted: boolean = false;
+  private isMuted: boolean = false;
 
   constructor() {
     // Ambient Audio setup
@@ -57,10 +58,17 @@ export class MockAudioEngine implements IAudioEngine {
   /**
    * Plays text-to-speech narration using browser's native SpeechSynthesis API
    */
-  public playNarration(text: string): Promise<void> {
+  public playNarration(text: string, onComplete?: () => void): Promise<void> {
     return new Promise((resolve) => {
+      if (this.isMuted) {
+        onComplete?.();
+        resolve();
+        return;
+      }
+
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         console.warn('[MOCK AUDIO] SpeechSynthesis API not supported in this browser.');
+        onComplete?.();
         resolve();
         return;
       }
@@ -74,11 +82,13 @@ export class MockAudioEngine implements IAudioEngine {
 
       utterance.onend = () => {
         console.log('[MOCK AUDIO] Narration finished:', text);
+        onComplete?.();
         resolve();
       };
 
       utterance.onerror = (event) => {
         console.warn('[MOCK AUDIO] Narration error:', event);
+        onComplete?.();
         resolve();
       };
 
@@ -93,6 +103,10 @@ export class MockAudioEngine implements IAudioEngine {
   public startAmbient(): void {
     if (!this.ambientAudio) return;
 
+    if (this.isMuted) {
+      this.ambientAudio.muted = true;
+    }
+
     this.ambientAudio.play().catch((err) => {
       console.warn('[MOCK AUDIO] Ambient playback blocked by browser autoplay policy until user interaction:', err);
     });
@@ -103,6 +117,8 @@ export class MockAudioEngine implements IAudioEngine {
    * Updates movement state by ramping low-frequency oscillator volume
    */
   public setMovementState(isMoving: boolean): void {
+    if (this.isMuted) return;
+
     this.ensureAudioContext();
 
     if (!this.audioContext || !this.movementGain) return;
@@ -119,6 +135,29 @@ export class MockAudioEngine implements IAudioEngine {
       this.movementGain.gain.setTargetAtTime(0, now, 0.08);
       console.log('[MOCK AUDIO] Movement audio inactive (ramped down)');
     }
+  }
+
+  /**
+   * Toggles mute on all audio channels
+   */
+  public setMuted(isMuted: boolean): void {
+    this.isMuted = isMuted;
+
+    if (this.ambientAudio) {
+      this.ambientAudio.muted = isMuted;
+    }
+
+    if (this.audioContext && this.movementGain) {
+      const now = this.audioContext.currentTime;
+      this.movementGain.gain.cancelScheduledValues(now);
+      this.movementGain.gain.setValueAtTime(isMuted ? 0 : 0.05, now);
+    }
+
+    if (isMuted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    console.log(`[MOCK AUDIO] Audio muted state -> ${isMuted}`);
   }
 
   /**
@@ -147,3 +186,5 @@ export class MockAudioEngine implements IAudioEngine {
     console.log('[MOCK AUDIO] All audio stopped and suspended.');
   }
 }
+
+export default MockAudioEngine;

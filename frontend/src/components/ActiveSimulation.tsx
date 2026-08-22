@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Radio, Compass } from 'lucide-react';
+import { X, Radio, Compass, Zap, Volume2, VolumeX, AlertTriangle, RotateCcw } from 'lucide-react';
 import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
+import { ReactorEngine } from '../engine/ReactorEngine';
+import { FishAudioEngine } from '../engine/FishAudioEngine';
+import type { IVideoEngine, VideoStreamSource } from '../engine/videoEngine';
+import type { IAudioEngine } from '../engine/audioEngine';
 import { useKeyboardControls } from '../hooks/useKeyboardControls';
 import { LoadingScreen } from './LoadingScreen';
 import type { MovementDirection, LookDirection } from '../types/simulation';
@@ -13,20 +17,25 @@ interface ActiveSimulationProps {
 
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onExit }) => {
   const [isStreamReady, setIsStreamReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
   const [activeLook, setActiveLook] = useState<LookDirection>('idle');
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Read environment flag for Live vs Mock mode
+  const useLiveApi = import.meta.env.VITE_USE_LIVE_API === 'true';
+
   // Persistent engine instances across component lifetime
-  const videoEngineRef = useRef<MockVideoEngine | null>(null);
+  const videoEngineRef = useRef<IVideoEngine | null>(null);
   if (!videoEngineRef.current) {
-    videoEngineRef.current = new MockVideoEngine();
+    videoEngineRef.current = useLiveApi ? new ReactorEngine() : new MockVideoEngine();
   }
 
-  const audioEngineRef = useRef<MockAudioEngine | null>(null);
+  const audioEngineRef = useRef<IAudioEngine | null>(null);
   if (!audioEngineRef.current) {
-    audioEngineRef.current = new MockAudioEngine();
+    audioEngineRef.current = useLiveApi ? new FishAudioEngine() : new MockAudioEngine();
   }
 
   // Handle keyboard movement changes
@@ -48,11 +57,20 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
     }
   }, []);
 
+  // Toggle Audio Mute
+  const handleToggleAudio = () => {
+    const nextMuted = !isAudioMuted;
+    setIsAudioMuted(nextMuted);
+    if (audioEngineRef.current) {
+      audioEngineRef.current.setMuted(nextMuted);
+    }
+  };
+
   // Keyboard controls hook active during simulation
   useKeyboardControls({
     onMovementChange: handleMovementChange,
     onLookChange: handleLookChange,
-    enabled: isStreamReady,
+    enabled: isStreamReady && !errorMessage,
   });
 
   // ESC key listener for quick exit
@@ -74,28 +92,41 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
     let isSubscribed = true;
 
     if (videoEngine && audioEngine) {
-      // 1. Initialize video stream
-      videoEngine.initialize(prompt, (source) => {
-        if (!isSubscribed) return;
+      // 1. Initialize video stream with error handling
+      (async () => {
+        try {
+          await videoEngine.initialize(prompt, (source: VideoStreamSource) => {
+            if (!isSubscribed) return;
 
-        if (videoRef.current) {
-          if (typeof source === 'string') {
-            videoRef.current.src = source;
-          } else if (source instanceof MediaStream) {
-            videoRef.current.srcObject = source;
-          }
-          videoRef.current.play().catch((err) => {
-            console.warn('[ACTIVE SIMULATION] Video play prevented:', err);
+            if (videoRef.current) {
+              if (source instanceof MediaStream) {
+                // Live WebRTC MediaStream
+                videoRef.current.srcObject = source;
+                videoRef.current.src = '';
+              } else if (typeof source === 'string') {
+                // Mock or URL source
+                videoRef.current.srcObject = null;
+                videoRef.current.src = source;
+              }
+
+              videoRef.current.play().catch((err) => {
+                console.warn('[ACTIVE SIMULATION] Video play prevented:', err);
+              });
+            }
+            setIsStreamReady(true);
           });
+
+          // 2. Start ambient audio
+          audioEngine.startAmbient();
+
+          // Narration greeting
+          audioEngine.playNarration(`Entering ${prompt}`);
+        } catch (error) {
+          if (!isSubscribed) return;
+          console.error('[ACTIVE SIMULATION] Initialization error:', error);
+          setErrorMessage('Connection Failed — Reactor Stream Offline');
         }
-        setIsStreamReady(true);
-      });
-
-      // 2. Start ambient audio
-      audioEngine.startAmbient();
-
-      // Optional narration greeting
-      audioEngine.playNarration(`Entering ${prompt}`);
+      })();
     }
 
     // Cleanup effect: Disconnect engines on unmount
@@ -112,23 +143,64 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
 
   return (
     <div className="relative w-full h-full min-h-screen bg-black overflow-hidden select-none">
-      {/* 1. Loading Screen if stream is not ready */}
-      {!isStreamReady && <LoadingScreen prompt={prompt} />}
+      {/* 1. Loading Screen if stream is not ready and no error */}
+      {!isStreamReady && !errorMessage && <LoadingScreen prompt={prompt} />}
 
       {/* 2. Full-screen Video Stream Element */}
       <video
         ref={videoRef}
         autoPlay
         loop
-        muted
+        muted={isAudioMuted}
         playsInline
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-          isStreamReady ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       />
 
-      {/* 3. HUD Overlay (Always on top of video) */}
-      {isStreamReady && (
+      {/* 3. Cinematic CRT Scanline & Anamorphic Vignette Overlay */}
+      {isStreamReady && !errorMessage && (
+        <div
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            backgroundImage: `
+              radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.65) 85%, rgba(0,0,0,0.92) 100%),
+              repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0px, rgba(0, 0, 0, 0.18) 1px, transparent 1px, transparent 2px)
+            `,
+          }}
+        />
+      )}
+
+      {/* 4. Error Modal (High-Contrast Red Overlay) */}
+      {errorMessage && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-6">
+          <div className="max-w-md w-full rounded-2xl border border-rose-900/80 bg-zinc-950/95 p-6 text-center space-y-6 shadow-[0_0_50px_rgba(225,29,72,0.25)]">
+            <div className="w-12 h-12 rounded-full bg-rose-950/80 border border-rose-600/50 flex items-center justify-center mx-auto text-rose-400">
+              <AlertTriangle className="w-6 h-6 animate-pulse" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-mono font-semibold tracking-wide text-rose-300 uppercase">
+                {errorMessage}
+              </h3>
+              <p className="text-xs text-zinc-400 font-mono">
+                Unable to establish peer connection with the remote neural stream. Verify your API credentials and network access.
+              </p>
+            </div>
+
+            <button
+              onClick={onExit}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-mono text-xs uppercase tracking-widest font-semibold transition-all shadow-lg active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Return to Base</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. HUD Overlay (Always on top of video) */}
+      {isStreamReady && !errorMessage && (
         <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6">
           
           {/* TOP BAR */}
@@ -144,13 +216,45 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
               <kbd className="text-[10px] bg-zinc-800/80 px-1.5 py-0.5 rounded text-zinc-400 border border-zinc-700">ESC</kbd>
             </button>
 
-            {/* Top-Right: Stream Status Indicator */}
-            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 backdrop-blur-md text-xs font-mono tracking-widest text-zinc-300 shadow-lg">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span>LIVE | FEED STABLE</span>
+            {/* Top-Right: Audio Mute Toggle & Stream Status Indicator */}
+            <div className="flex items-center gap-3">
+              {/* Interactive Audio Toggle */}
+              <button
+                onClick={handleToggleAudio}
+                className={`pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-xl border backdrop-blur-md text-xs font-mono tracking-wider transition-all active:scale-95 shadow-lg ${
+                  isAudioMuted
+                    ? 'bg-zinc-950/70 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                    : 'bg-zinc-950/70 border-zinc-700 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:border-emerald-500'
+                }`}
+                title={isAudioMuted ? 'Unmute Audio' : 'Mute Audio'}
+              >
+                {isAudioMuted ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>MUTED</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span>AUDIO LIVE</span>
+                  </>
+                )}
+              </button>
+
+              {/* Live Badge */}
+              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 backdrop-blur-md text-xs font-mono tracking-widest text-zinc-300 shadow-lg">
+                {useLiveApi && (
+                  <span className="flex items-center gap-1 text-[10px] text-amber-400 font-semibold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                    <Zap className="w-2.5 h-2.5" />
+                    <span>REACTOR</span>
+                  </span>
+                )}
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span>LIVE | FEED STABLE</span>
+              </div>
             </div>
           </div>
 
