@@ -89,6 +89,22 @@ export class ReactorEngine implements IVideoEngine {
         }
       });
 
+      this.client.on('statusChanged', (status: string) => {
+        console.log(`[REACTOR ENGINE] Status changed -> ${status}`);
+      });
+
+      this.client.on('schemaReceived', (schema: any) => {
+        console.log('[REACTOR ENGINE] Model schema received:', JSON.stringify(schema));
+      });
+
+      this.client.on('message', (msg: any) => {
+        console.log('[REACTOR ENGINE] Model message received:', JSON.stringify(msg));
+      });
+
+      this.client.on('runtimeMessage', (msg: any) => {
+        console.log('[REACTOR ENGINE] Runtime message received:', JSON.stringify(msg));
+      });
+
       // 4. Establish WebRTC connection using JWT token
       await this.client.connect(jwtToken);
       console.log('[REACTOR ENGINE] WebRTC peer connection established.');

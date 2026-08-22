@@ -12,10 +12,11 @@ import type { MovementDirection, LookDirection } from '../types/simulation';
 
 interface ActiveSimulationProps {
   prompt: string;
+  isLiveMode?: boolean;
   onExit: () => void;
 }
 
-export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onExit }) => {
+export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, isLiveMode = false, onExit }) => {
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamSource, setStreamSource] = useState<VideoStreamSource | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -25,18 +26,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Read environment flag for Live vs Mock mode
-  const useLiveApi = import.meta.env.VITE_USE_LIVE_API === 'true';
-
   // Persistent engine instances across component lifetime
   const videoEngineRef = useRef<IVideoEngine | null>(null);
   if (!videoEngineRef.current) {
-    videoEngineRef.current = useLiveApi ? new ReactorEngine() : new MockVideoEngine();
+    videoEngineRef.current = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
   }
 
   const audioEngineRef = useRef<IAudioEngine | null>(null);
   if (!audioEngineRef.current) {
-    audioEngineRef.current = useLiveApi ? new FishAudioEngine() : new MockAudioEngine();
+    audioEngineRef.current = isLiveMode ? new FishAudioEngine() : new MockAudioEngine();
   }
 
   // Handle keyboard movement changes
@@ -276,10 +274,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
 
               {/* Live Badge */}
               <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 backdrop-blur-md text-xs font-mono tracking-widest text-zinc-300 shadow-lg">
-                {useLiveApi && (
+                {isLiveMode ? (
                   <span className="flex items-center gap-1 text-[10px] text-amber-400 font-semibold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
                     <Zap className="w-2.5 h-2.5" />
                     <span>REACTOR</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-semibold bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/30">
+                    <span>MOCK</span>
                   </span>
                 )}
                 <span className="relative flex h-2 w-2">

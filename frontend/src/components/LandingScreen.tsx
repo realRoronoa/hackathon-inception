@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Mic, MicOff, ArrowRight, Sparkles, Radio } from 'lucide-react';
+import { Mic, MicOff, ArrowRight, Sparkles, Radio, Zap, ShieldCheck } from 'lucide-react';
 import { useVoicePrompt } from '../hooks/useVoicePrompt';
 
 interface LandingScreenProps {
   onStartSimulation: (prompt: string) => void;
+  isLiveMode: boolean;
+  onToggleLiveMode: (live: boolean) => void;
 }
 
 const PRESET_WORLDS = [
@@ -12,7 +14,11 @@ const PRESET_WORLDS = [
   'Cyberpunk Alley',
 ];
 
-export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation }) => {
+export const LandingScreen: React.FC<LandingScreenProps> = ({
+  onStartSimulation,
+  isLiveMode,
+  onToggleLiveMode,
+}) => {
   const [prompt, setPrompt] = useState('');
 
   // Native Web Speech Recognition hook
@@ -50,6 +56,32 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onStartSimulation 
 
   return (
     <div className="relative w-full h-full min-h-screen bg-black flex flex-col items-center justify-center px-4 overflow-hidden select-none">
+      {/* Top Bar with Live / Mock Mode Switch */}
+      <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onToggleLiveMode(!isLiveMode)}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono tracking-wider border backdrop-blur-md transition-all shadow-lg active:scale-95 ${
+            isLiveMode
+              ? 'bg-amber-950/50 border-amber-500/50 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+              : 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+          }`}
+          title="Toggle between Live Reactor API (uses credits) and Free Mock Engine (0 credits)"
+        >
+          {isLiveMode ? (
+            <>
+              <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>LIVE REACTOR API</span>
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>FREE MOCK MODE (0 CREDITS)</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Subtle background ambient radial gradient */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(24,24,27,0.5)_0%,rgba(0,0,0,1)_100%)] pointer-events-none" />
