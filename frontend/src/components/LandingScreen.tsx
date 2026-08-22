@@ -15,6 +15,7 @@ interface LandingScreenProps {
   onStartSimulation: (prompt: string) => void;
   isLiveMode: boolean;
   onToggleLiveMode: (live: boolean) => void;
+  onBackToLanding?: () => void;
 }
 
 interface SectorCard {
@@ -63,6 +64,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
   onStartSimulation,
   isLiveMode,
   onToggleLiveMode,
+  onBackToLanding,
 }) => {
   const [prompt, setPrompt] = useState('');
   const [isLogbookOpen, setIsLogbookOpen] = useState(false);
@@ -155,24 +157,40 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
           backdropFilter: 'blur(12px)',
         }}
       >
-        {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-7 h-7 flex items-center justify-center text-sm font-bold border"
-            style={{
-              borderColor: '#4FD8E8',
-              color: '#4FD8E8',
-              backgroundColor: 'rgba(79,216,232,0.06)',
-            }}
-          >
-            ◆
-          </div>
-          <div
-            className="text-[13px] tracking-wider"
-            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-          >
-            <b className="font-semibold text-[#E7ECF3]">INCEPTION</b>{' '}
-            <span className="text-[#5B6577]">/ ENGINE 2.0</span>
+        {/* Brand & Overview Back Button */}
+        <div className="flex items-center gap-4">
+          {onBackToLanding && (
+            <button
+              onClick={onBackToLanding}
+              className="px-2.5 py-1 text-[11px] font-mono border text-[#8E9AAE] hover:text-[#E7ECF3] hover:border-[#4FD8E8] transition-all"
+              style={{
+                borderColor: 'rgba(150,170,200,0.18)',
+                backgroundColor: 'rgba(16,21,29,0.8)',
+              }}
+              title="Return to Marketing Overview"
+            >
+              ← OVERVIEW
+            </button>
+          )}
+
+          <div className="flex items-center gap-3">
+            <div
+              className="w-7 h-7 flex items-center justify-center text-sm font-bold border"
+              style={{
+                borderColor: '#4FD8E8',
+                color: '#4FD8E8',
+                backgroundColor: 'rgba(79,216,232,0.06)',
+              }}
+            >
+              ◆
+            </div>
+            <div
+              className="text-[13px] tracking-wider"
+              style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+            >
+              <b className="font-semibold text-[#E7ECF3]">INCEPTION</b>{' '}
+              <span className="text-[#5B6577]">/ SPATIAL STUDIO</span>
+            </div>
           </div>
         </div>
 

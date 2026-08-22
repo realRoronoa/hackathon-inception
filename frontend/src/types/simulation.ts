@@ -3,9 +3,8 @@
  */
 export enum AppState {
   LANDING = 'landing',
-  LOADING = 'loading',
+  STUDIO = 'studio',
   ACTIVE = 'active',
-  ENDED = 'ended',
 }
 
 /**
