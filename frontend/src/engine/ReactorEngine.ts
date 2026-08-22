@@ -1,6 +1,7 @@
 import { Reactor } from '@reactor-team/js-sdk';
 import type { MovementDirection, LookDirection } from '../types/simulation';
 import type { IVideoEngine, VideoStreamSource } from './videoEngine';
+import { applyMasterTheme } from '../utils/themeWrapper';
 
 /**
  * Exchanges a raw Reactor API Key (rk_...) for a short-lived scoped JWT token
@@ -205,8 +206,9 @@ export class ReactorEngine implements IVideoEngine {
         console.warn('[REACTOR ENGINE] Seed image upload warning:', uploadErr);
       }
 
-      await this.client.sendCommand('set_prompt', { prompt });
-      console.log(`[REACTOR ENGINE] Sent set_prompt: "${prompt}"`);
+      const styledPrompt = applyMasterTheme(prompt);
+      await this.client.sendCommand('set_prompt', { prompt: styledPrompt });
+      console.log(`[REACTOR ENGINE] Sent styled set_prompt: "${styledPrompt}"`);
 
       // 6. Trigger start command to begin generation
       await this.client.sendCommand('start', {});
@@ -262,8 +264,9 @@ export class ReactorEngine implements IVideoEngine {
   public async setPrompt(prompt: string): Promise<void> {
     if (!this.client || this.client.getStatus() !== 'ready') return;
     try {
-      await this.client.sendCommand('set_prompt', { prompt });
-      console.log(`[REACTOR ENGINE] Mid-stream prompt updated -> "${prompt}"`);
+      const styledPrompt = applyMasterTheme(prompt);
+      await this.client.sendCommand('set_prompt', { prompt: styledPrompt });
+      console.log(`[REACTOR ENGINE] Mid-stream styled prompt updated -> "${styledPrompt}"`);
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to update mid-stream prompt:', err);
     }
