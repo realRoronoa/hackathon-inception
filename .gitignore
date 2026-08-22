@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Production builds
+dist/
+frontend/dist/
+
+# System and logs
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE & Tooling
+.vscode/
+.idea/
+.gemini/
