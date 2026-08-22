@@ -14,6 +14,7 @@ import {
   Sparkles,
   Video,
   Radio,
+  Clock,
 } from 'lucide-react';
 import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
@@ -87,6 +88,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
   // Snapshot flash state
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
+
+  // 120-Second Strict Session Countdown
+  const [sessionTimeLeft, setSessionTimeLeft] = useState<number>(120);
 
   // Mission Stats & Debrief State
   const [missionStartTime] = useState<number>(Date.now());
@@ -277,6 +281,27 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     }, 1000);
     return () => clearInterval(interval);
   }, [isRecording]);
+
+  // 120-Second Strict Session Countdown Timer
+  useEffect(() => {
+    if (!isStreamReady || errorMessage || showDebrief) return;
+
+    const timer = setInterval(() => {
+      setSessionTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Auto snapshot & debrief transition
+          handleCaptureSnapshot();
+          soundFx.playSuccessChime();
+          setShowDebrief(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isStreamReady, errorMessage, showDebrief, handleCaptureSnapshot]);
 
   // Periodic Tactical Events Trigger
   useEffect(() => {
@@ -612,8 +637,25 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
               </span>
             </div>
 
-            {/* Top-Right: Capture, Record, Audio & Mode */}
+            {/* Top-Right: Capture, Record, Timer, Audio & Mode */}
             <div className="flex items-center gap-2">
+              {/* Session Countdown Timer */}
+              <div
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border backdrop-blur-md text-xs font-mono tracking-wider ${
+                  sessionTimeLeft <= 30
+                    ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse'
+                    : 'bg-zinc-950/80 border-zinc-800 text-cyan-300'
+                }`}
+                title="Strict 2-Minute Exploration Countdown"
+              >
+                <Clock className={`w-3.5 h-3.5 ${sessionTimeLeft <= 30 ? 'text-rose-400 animate-spin' : 'text-cyan-400'}`} />
+                <span>
+                  {Math.floor(sessionTimeLeft / 60)}:
+                  {sessionTimeLeft % 60 < 10 ? '0' : ''}
+                  {sessionTimeLeft % 60}
+                </span>
+              </div>
+
               {/* Snapshot Button */}
               <button
                 onClick={handleCaptureSnapshot}

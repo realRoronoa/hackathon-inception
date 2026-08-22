@@ -4,10 +4,12 @@ import {
   MicOff,
   ArrowRight,
   Image as ImageIcon,
+  Sparkles,
 } from 'lucide-react';
 import { useVoicePrompt } from '../hooks/useVoicePrompt';
 import { LogbookModal } from './LogbookModal';
 import type { SnapshotItem } from './LogbookModal';
+import { expandCinematicPrompt } from '../utils/themeWrapper';
 
 interface LandingScreenProps {
   onStartSimulation: (prompt: string) => void;
@@ -62,6 +64,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
   const [prompt, setPrompt] = useState('');
   const [isLogbookOpen, setIsLogbookOpen] = useState(false);
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Load saved snapshots from localStorage
   useEffect(() => {
@@ -74,6 +77,14 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
   const handleClearSnapshots = () => {
     localStorage.removeItem('inception_snapshots');
     setSnapshots([]);
+  };
+
+  // AI Prompt Expansion
+  const handleEnhancePrompt = () => {
+    setIsEnhancing(true);
+    const expanded = expandCinematicPrompt(prompt);
+    setPrompt(expanded);
+    setTimeout(() => setIsEnhancing(false), 600);
   };
 
   // Native Web Speech Recognition hook
@@ -300,6 +311,21 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
                 className="flex-1 bg-transparent border-none outline-none text-[#E7ECF3] text-[15px] py-3 font-normal placeholder-[#5B6577]"
                 autoFocus
               />
+
+              {/* AI Prompt Enhancer Button */}
+              <button
+                type="button"
+                onClick={handleEnhancePrompt}
+                className={`flex items-center gap-1.5 px-3 py-2 border text-[11px] font-mono transition-all duration-200 cursor-pointer active:scale-95 ${
+                  isEnhancing
+                    ? 'border-[#4FD8E8] text-[#4FD8E8] bg-[#4FD8E8]/20 shadow-[0_0_20px_rgba(79,216,232,0.4)] animate-pulse'
+                    : 'border-[rgba(150,170,200,0.18)] text-[#8E9AAE] hover:text-[#4FD8E8] hover:border-[#4FD8E8]/60 bg-white/[0.02]'
+                }`}
+                title="Enhance prompt with cinematic atmosphere"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isEnhancing ? 'animate-spin text-[#4FD8E8]' : 'text-[#4FD8E8]'}`} />
+                <span className="hidden sm:inline">Enhance</span>
+              </button>
 
               {/* Voice Input Button */}
               <button
