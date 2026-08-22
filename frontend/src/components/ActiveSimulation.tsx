@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Radio, Compass, Zap, Volume2, VolumeX, AlertTriangle, RotateCcw } from 'lucide-react';
-import { ReactorProvider, ReactorView } from '@reactor-team/js-sdk';
 import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
 import { ReactorEngine } from '../engine/ReactorEngine';
@@ -28,20 +27,10 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
   const [activeLook, setActiveLook] = useState<LookDirection>('idle');
-  const [reactorJwt, setReactorJwt] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Persistent engine instances across component lifetime
   const videoEngineRef = useRef<IVideoEngine | null>(null);
-  if (!videoEngineRef.current) {
-    videoEngineRef.current = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
-  }
-
   const audioEngineRef = useRef<IAudioEngine | null>(null);
-  if (!audioEngineRef.current) {
-    audioEngineRef.current = isLiveMode ? new FishAudioEngine() : new MockAudioEngine();
-  }
 
   // Handle keyboard movement changes
   const handleMovementChange = useCallback((direction: MovementDirection) => {
@@ -89,90 +78,90 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onExit]);
 
-  // Attach and play video stream on the HTML5 video element (used in Mock mode)
+  // Dedicated effect to attach stream source to HTML5 video element
   useEffect(() => {
-    if (isLiveMode) return;
-
     const el = videoRef.current;
     if (!el || !streamSource) return;
 
-    try {
-      if (typeof streamSource === 'string') {
-        el.srcObject = null;
-        el.src = streamSource;
-      } else if (streamSource instanceof MediaStream) {
-        el.srcObject = streamSource;
-        el.src = '';
+    const attach = (reset = false) => {
+      try {
+        if (reset) {
+          el.srcObject = null;
+        }
+        if (streamSource instanceof MediaStream) {
+          el.srcObject = streamSource;
+          el.src = '';
+        } else if (typeof streamSource === 'string') {
+          el.srcObject = null;
+          el.src = streamSource;
+        }
+        el.play().catch((err) => {
+          console.warn('[ACTIVE SIMULATION] Video playback auto-play note:', err);
+        });
+      } catch (err) {
+        console.error('[ACTIVE SIMULATION] Stream attachment error:', err);
       }
-      el.play().catch((err) => {
-        console.warn('[ACTIVE SIMULATION] Video playback note:', err);
-      });
-    } catch (err) {
-      console.error('[ACTIVE SIMULATION] Failed to attach stream:', err);
+    };
+
+    attach(false);
+
+    if (streamSource instanceof MediaStream) {
+      const tracks = streamSource.getTracks();
+      const onUnmute = () => {
+        console.log('[ACTIVE SIMULATION] MediaStream track unmuted — rendering video frames.');
+        attach(true);
+      };
+
+      for (const track of tracks) {
+        track.addEventListener('unmute', onUnmute);
+      }
+
+      return () => {
+        for (const track of tracks) {
+          track.removeEventListener('unmute', onUnmute);
+        }
+      };
     }
-  }, [streamSource, isLiveMode]);
+  }, [streamSource]);
 
-  // Mount effect: Initialize stream and ambient audio
+  // Mount effect: Single instance initialization (no duplicate sessions)
   useEffect(() => {
-    const videoEngine = videoEngineRef.current;
-    const audioEngine = audioEngineRef.current;
-
     let isSubscribed = true;
 
-    if (videoEngine && audioEngine) {
-      (async () => {
-        try {
-          // If Live Mode, resolve JWT for ReactorProvider
-          if (isLiveMode) {
-            const apiKey = import.meta.env.VITE_REACTOR_API_KEY || '';
-            const res = await fetch('https://api.reactor.inc/tokens', {
-              method: 'POST',
-              headers: {
-                'Reactor-API-Key': apiKey,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                authorization_details: [
-                  {
-                    type: 'session',
-                    resources: { models: { match: ['lingbot'] } },
-                  },
-                ],
-              }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (isSubscribed && data.jwt) {
-                setReactorJwt(data.jwt);
-              }
-            }
-          }
+    const videoEngine = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
+    const audioEngine = isLiveMode ? new FishAudioEngine() : new MockAudioEngine();
 
-          await videoEngine.initialize(prompt, (source: VideoStreamSource) => {
-            if (!isSubscribed) return;
-            setStreamSource(source);
-            setIsStreamReady(true);
-          });
+    videoEngineRef.current = videoEngine;
+    audioEngineRef.current = audioEngine;
 
-          // Start ambient audio & speech greeting
-          audioEngine.startAmbient();
-          audioEngine.playNarration(`Entering ${prompt}`);
-        } catch (error) {
+    (async () => {
+      try {
+        await videoEngine.initialize(prompt, (source: VideoStreamSource) => {
           if (!isSubscribed) return;
-          console.error('[ACTIVE SIMULATION] Initialization error:', error);
-          setErrorMessage('Connection Failed — Reactor Stream Offline');
-        }
-      })();
-    }
+          console.log('[ACTIVE SIMULATION] Stream ready received.');
+          setStreamSource(source);
+          setIsStreamReady(true);
+        });
+
+        if (!isSubscribed) return;
+        audioEngine.startAmbient();
+        audioEngine.playNarration(`Entering ${prompt}`);
+      } catch (error: any) {
+        if (!isSubscribed) return;
+        console.error('[ACTIVE SIMULATION] Initialization error:', error);
+        const msg = error?.message?.includes('429')
+          ? 'Quota Cooldown (Wait 5s) — Reactor Rate Limit'
+          : 'Connection Failed — Reactor Stream Offline';
+        setErrorMessage(msg);
+      }
+    })();
 
     return () => {
       isSubscribed = false;
-      if (videoEngine) {
-        videoEngine.disconnect();
-      }
-      if (audioEngine) {
-        audioEngine.stopAll();
-      }
+      videoEngine.disconnect();
+      audioEngine.stopAll();
+      videoEngineRef.current = null;
+      audioEngineRef.current = null;
     };
   }, [prompt, isLiveMode]);
 
@@ -181,34 +170,17 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen if stream is not ready and no error */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={prompt} />}
 
-      {/* 2. Video Stream Rendering */}
-      {isLiveMode && reactorJwt ? (
-        <ReactorProvider
-          modelName="reactor/lingbot"
-          apiUrl="https://api.reactor.inc"
-          jwtToken={reactorJwt}
-          connectOptions={{ autoConnect: true }}
-        >
-          <ReactorView
-            track="main_video"
-            videoObjectFit="cover"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-              isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
-          />
-        </ReactorProvider>
-      ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          loop
-          muted
-          playsInline
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-            isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-        />
-      )}
+      {/* 2. Video Stream Element */}
+      <video
+        ref={videoRef}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+          isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      />
 
       {/* 3. Cinematic CRT Scanline & Anamorphic Vignette Overlay */}
       {isStreamReady && !errorMessage && (
@@ -236,7 +208,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                 {errorMessage}
               </h3>
               <p className="text-xs text-zinc-400 font-mono">
-                Unable to establish peer connection with the remote neural stream. Verify your API credentials and network access.
+                {errorMessage.includes('Cooldown')
+                  ? 'Reactor enforces a maximum of 10 session creations per minute. Please wait 5-10 seconds before starting the next session.'
+                  : 'Unable to establish peer connection with the remote neural stream. Verify your API credentials and network access.'}
               </p>
             </div>
 
