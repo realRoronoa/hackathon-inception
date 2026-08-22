@@ -28,31 +28,34 @@ interface SectorCard {
 
 const SECTORS: SectorCard[] = [
   {
-    id: 'orbital',
+    id: 'smart-kitchen',
     icon: '◒',
-    tag: 'DEEP SPACE',
-    title: 'Orbital station',
+    tag: 'BOMMANAHALLI • IOT',
+    title: 'Smart Kitchen Hub',
     description:
-      'Drifting derelict habitat near planetary rings, emergency lighting failing across three decks.',
-    prompt: 'Abandoned Orbital Station adrift near Saturn rings with flickering emergency lights',
+      'High-end operational smart kitchen showroom with polished stainless steel counters, embedded digital displays, and warm LED lighting.',
+    prompt:
+      'A high-end operational smart kitchen showroom with polished stainless steel counters, embedded digital displays, and warm architectural LED lighting, cinematic exploration aesthetic',
   },
   {
-    id: 'manor',
+    id: 'ev-showroom',
     icon: '▦',
-    tag: 'GOTHIC ESTATE',
-    title: 'Victorian manor',
+    tag: 'INDIRANAGAR • EV',
+    title: 'Urban EV Showroom',
     description:
-      'Moody gothic architecture wrapped in midnight thunderstorm, fog rolling through the east wing.',
-    prompt: 'Victorian Manor in a dense midnight thunderstorm with torchlit hallways',
+      'Minimalist futuristic electric vehicle showroom with glossy epoxy floors, neon accent strips, and a sleek vehicle platform.',
+    prompt:
+      'A minimalist futuristic electric vehicle showroom with glossy epoxy floors, neon accent strips, and a sleek vehicle platform, high-end sci-fi atmosphere',
   },
   {
-    id: 'cyberpunk',
+    id: 'ai-flagship',
     icon: '◫',
-    tag: 'NEO-TOKYO',
-    title: 'Cyberpunk alley',
+    tag: 'OPERA HOUSE • TECH',
+    title: 'AI Connected Flagship',
     description:
-      'Rain-drenched neon corridor beneath towering holographic billboards and distant sirens.',
-    prompt: 'Cyberpunk Alley drenched in neon rain with flying holograms and steam vents',
+      'Multi-zone interactive consumer electronics flagship lounge with curved ambient screens and futuristic smart home displays.',
+    prompt:
+      'A multi-zone interactive consumer electronics flagship lounge with curved ambient screens and futuristic smart home displays, cinematic lighting',
   },
 ];
 
