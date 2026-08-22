@@ -17,6 +17,7 @@ interface ActiveSimulationProps {
 
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onExit }) => {
   const [isStreamReady, setIsStreamReady] = useState(false);
+  const [streamSource, setStreamSource] = useState<VideoStreamSource | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
@@ -84,6 +85,53 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onExit]);
 
+  // Dedicated effect to attach and play video stream on the HTML5 video element
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !streamSource) return;
+
+    const attach = (reset = false) => {
+      try {
+        if (reset) {
+          el.srcObject = null;
+        }
+        if (streamSource instanceof MediaStream) {
+          el.srcObject = streamSource;
+          el.src = '';
+        } else if (typeof streamSource === 'string') {
+          el.srcObject = null;
+          el.src = streamSource;
+        }
+        el.play().catch((err) => {
+          console.warn('[ACTIVE SIMULATION] Video auto-play prevented:', err);
+        });
+      } catch (err) {
+        console.error('[ACTIVE SIMULATION] Failed to attach stream to video element:', err);
+      }
+    };
+
+    attach(false);
+
+    // If WebRTC MediaStream, listen for track "unmute" when first video frame arrives from server
+    if (streamSource instanceof MediaStream) {
+      const tracks = streamSource.getTracks();
+      const onUnmute = () => {
+        console.log('[ACTIVE SIMULATION] WebRTC video track unmuted — re-attaching element to render incoming frames.');
+        attach(true);
+      };
+
+      for (const track of tracks) {
+        track.addEventListener('unmute', onUnmute);
+      }
+
+      return () => {
+        for (const track of tracks) {
+          track.removeEventListener('unmute', onUnmute);
+        }
+      };
+    }
+  }, [streamSource]);
+
   // Mount effect: Initialize stream and ambient audio
   useEffect(() => {
     const videoEngine = videoEngineRef.current;
@@ -97,22 +145,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
         try {
           await videoEngine.initialize(prompt, (source: VideoStreamSource) => {
             if (!isSubscribed) return;
-
-            if (videoRef.current) {
-              if (source instanceof MediaStream) {
-                // Live WebRTC MediaStream
-                videoRef.current.srcObject = source;
-                videoRef.current.src = '';
-              } else if (typeof source === 'string') {
-                // Mock or URL source
-                videoRef.current.srcObject = null;
-                videoRef.current.src = source;
-              }
-
-              videoRef.current.play().catch((err) => {
-                console.warn('[ACTIVE SIMULATION] Video play prevented:', err);
-              });
-            }
+            setStreamSource(source);
             setIsStreamReady(true);
           });
 
@@ -146,12 +179,12 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ prompt, onEx
       {/* 1. Loading Screen if stream is not ready and no error */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={prompt} />}
 
-      {/* 2. Full-screen Video Stream Element */}
+      {/* 2. Full-screen Video Stream Element (Always muted to allow autoplay) */}
       <video
         ref={videoRef}
         autoPlay
         loop
-        muted={isAudioMuted}
+        muted
         playsInline
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
           isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'

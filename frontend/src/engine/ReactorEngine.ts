@@ -77,12 +77,15 @@ export class ReactorEngine implements IVideoEngine {
       });
 
       // 3. Listen for incoming WebRTC video stream track
-      this.client.on('trackReceived', (name: string, _track: MediaStreamTrack, stream: MediaStream) => {
-        console.log(`[REACTOR ENGINE] WebRTC track received: "${name}"`);
+      this.client.on('trackReceived', (name: string, track: MediaStreamTrack, stream: MediaStream) => {
+        console.log(`[REACTOR ENGINE] WebRTC track received: "${name}"`, track);
         if (name === 'main_video' || name === 'video') {
           console.log('[REACTOR ENGINE] Main video stream active.');
           this.isConnected = true;
-          onStreamReady(stream);
+
+          // Ensure MediaStream carries the video track
+          const mediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
+          onStreamReady(mediaStream);
         }
       });
 
