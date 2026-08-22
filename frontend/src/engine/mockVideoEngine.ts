@@ -58,6 +58,10 @@ export class MockVideoEngine implements IVideoEngine {
     console.log('[MOCK VIDEO] Look ->', direction);
   }
 
+  public setPrompt(prompt: string): void {
+    console.log(`[MOCK VIDEO] Mid-stream prompt updated -> "${prompt}"`);
+  }
+
   public disconnect(): void {
     if (this.initTimeoutId) {
       clearTimeout(this.initTimeoutId);

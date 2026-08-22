@@ -259,6 +259,16 @@ export class ReactorEngine implements IVideoEngine {
     }
   }
 
+  public async setPrompt(prompt: string): Promise<void> {
+    if (!this.client || this.client.getStatus() !== 'ready') return;
+    try {
+      await this.client.sendCommand('set_prompt', { prompt });
+      console.log(`[REACTOR ENGINE] Mid-stream prompt updated -> "${prompt}"`);
+    } catch (err) {
+      console.warn('[REACTOR ENGINE] Failed to update mid-stream prompt:', err);
+    }
+  }
+
   public disconnect(): void {
     if (this.client) {
       try {

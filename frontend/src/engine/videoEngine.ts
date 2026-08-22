@@ -25,6 +25,11 @@ export interface IVideoEngine {
   sendLook(direction: LookDirection): void;
 
   /**
+   * Updates prompt mid-stream without disconnecting
+   */
+  setPrompt?(prompt: string): Promise<void> | void;
+
+  /**
    * Disconnects the active video stream session
    */
   disconnect(): void;
