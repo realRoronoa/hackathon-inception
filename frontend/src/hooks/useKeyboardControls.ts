@@ -4,23 +4,23 @@ import type { MovementDirection, LookDirection } from '../types/simulation';
 export type MovementChangeHandler = (direction: MovementDirection) => void;
 export type LookChangeHandler = (direction: LookDirection) => void;
 
-export interface KeyboardControlsOptions {
+export interface SimulationControlsOptions {
   onMovementChange?: MovementChangeHandler;
   onLookChange?: LookChangeHandler;
   enabled?: boolean;
 }
 
 /**
- * High-Performance WASD & Arrow Key Controller Hook
+ * Unified Keyboard (WASD) & Mouse Look Controller Hook
  * 
- * Uses refs and requestAnimationFrame to avoid triggering unnecessary React re-renders.
- * Only invokes callbacks when the resolved direction changes state.
+ * - Full WASD keyboard navigation
+ * - Real-time Mouse Look & drag-to-aim camera steering (FPS / Cockpit style)
+ * - Zero React re-renders via requestAnimationFrame tick loop
  */
 export function useKeyboardControls(
-  onMovementChangeOrOptions?: MovementChangeHandler | KeyboardControlsOptions,
+  onMovementChangeOrOptions?: MovementChangeHandler | SimulationControlsOptions,
   onLookChangeArg?: LookChangeHandler
 ) {
-  // Normalize arguments whether passed as individual callbacks or an options object
   const isOptionsObj =
     typeof onMovementChangeOrOptions === 'object' &&
     onMovementChangeOrOptions !== null;
@@ -37,7 +37,6 @@ export function useKeyboardControls(
     ? onMovementChangeOrOptions.enabled
     : true;
 
-  // Store latest callbacks in refs to avoid re-binding event listeners
   const onMovementChangeRef = useRef<MovementChangeHandler | undefined>(onMovementChange);
   const onLookChangeRef = useRef<LookChangeHandler | undefined>(onLookChange);
 
@@ -49,7 +48,6 @@ export function useKeyboardControls(
     onLookChangeRef.current = onLookChange;
   }, [onLookChange]);
 
-  // Key state map stored in ref for zero re-renders
   const keysPressedRef = useRef<{
     KeyW: boolean;
     KeyA: boolean;
@@ -70,13 +68,15 @@ export function useKeyboardControls(
     ArrowRight: false,
   });
 
-  // Track previous states to ONLY fire callbacks on actual state changes
+  // Mouse displacement buffer & timeout
+  const mouseDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const lastMovementRef = useRef<MovementDirection>('idle');
   const lastLookRef = useRef<LookDirection>('idle');
 
   useEffect(() => {
     if (!enabled) {
-      // Reset to idle if disabled
       if (lastMovementRef.current !== 'idle') {
         lastMovementRef.current = 'idle';
         onMovementChangeRef.current?.('idle');
@@ -88,8 +88,8 @@ export function useKeyboardControls(
       return;
     }
 
+    // 1. Keyboard KeyDown & KeyUp
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip when typing in form inputs
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -131,8 +131,31 @@ export function useKeyboardControls(
       if (code === 'ArrowRight' || key === 'arrowright') keys.ArrowRight = false;
     };
 
+    // 2. Mouse Move & Pointer Drag (FPS / Cockpit Game Steering)
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'BUTTON')) {
+        return;
+      }
+
+      const movementX = e.movementX || (e as any).mozMovementX || 0;
+      const movementY = e.movementY || (e as any).mozMovementY || 0;
+
+      mouseDeltaRef.current.dx = movementX;
+      mouseDeltaRef.current.dy = movementY;
+
+      // Clear previous timeout and set reset
+      if (mouseTimeoutRef.current) {
+        clearTimeout(mouseTimeoutRef.current);
+      }
+
+      mouseTimeoutRef.current = setTimeout(() => {
+        mouseDeltaRef.current.dx = 0;
+        mouseDeltaRef.current.dy = 0;
+      }, 140);
+    };
+
     const handleBlur = () => {
-      // Reset all keys when window loses focus
       const keys = keysPressedRef.current;
       keys.KeyW = false;
       keys.KeyA = false;
@@ -142,18 +165,22 @@ export function useKeyboardControls(
       keys.ArrowDown = false;
       keys.ArrowLeft = false;
       keys.ArrowRight = false;
+      mouseDeltaRef.current.dx = 0;
+      mouseDeltaRef.current.dy = 0;
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('blur', handleBlur);
 
     let animationFrameId: number;
 
     const tick = () => {
       const keys = keysPressedRef.current;
+      const mouse = mouseDeltaRef.current;
 
-      // 1. Calculate Priority Movement Direction
+      // 1. Calculate Movement Direction
       let currentMovement: MovementDirection = 'idle';
       if (keys.KeyW && !keys.KeyS) {
         currentMovement = 'forward';
@@ -165,15 +192,24 @@ export function useKeyboardControls(
         currentMovement = 'right';
       }
 
-      // Fire movement callback ONLY when direction changes
       if (currentMovement !== lastMovementRef.current) {
         lastMovementRef.current = currentMovement;
         onMovementChangeRef.current?.(currentMovement);
       }
 
-      // 2. Calculate Priority Look Direction
+      // 2. Calculate Look Direction (Combined Keyboard + Mouse)
       let currentLook: LookDirection = 'idle';
-      if (keys.ArrowUp && !keys.ArrowDown) {
+
+      // Mouse has steering priority if active
+      if (mouse.dx < -3) {
+        currentLook = 'left';
+      } else if (mouse.dx > 3) {
+        currentLook = 'right';
+      } else if (mouse.dy < -3) {
+        currentLook = 'up';
+      } else if (mouse.dy > 3) {
+        currentLook = 'down';
+      } else if (keys.ArrowUp && !keys.ArrowDown) {
         currentLook = 'up';
       } else if (keys.ArrowDown && !keys.ArrowUp) {
         currentLook = 'down';
@@ -183,7 +219,6 @@ export function useKeyboardControls(
         currentLook = 'right';
       }
 
-      // Fire look callback ONLY when direction changes
       if (currentLook !== lastLookRef.current) {
         lastLookRef.current = currentLook;
         onLookChangeRef.current?.(currentLook);
@@ -197,7 +232,9 @@ export function useKeyboardControls(
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('blur', handleBlur);
+      if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
       cancelAnimationFrame(animationFrameId);
     };
   }, [enabled]);

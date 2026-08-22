@@ -854,6 +854,10 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                     {activeLook}
                   </span>
                 </div>
+                <span className="text-zinc-700 hidden md:inline">|</span>
+                <div className="hidden md:flex items-center gap-1 text-[#4FD8E8]">
+                  <span>MOUSE / ARROWS</span>
+                </div>
               </div>
             </div>
           </div>
