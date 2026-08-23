@@ -605,6 +605,95 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         />
       </div>
 
+      {/* 3. Authentic 3rd-Person Main Character (MC) with Real-Time Animated Walking Strides */}
+      {isStreamReady && (
+        <div className="absolute inset-x-0 bottom-10 z-25 pointer-events-none flex flex-col items-center justify-end">
+          <div
+            className="relative flex flex-col items-center transition-transform duration-150 ease-out"
+            style={{
+              transform: `translate3d(${(simRef.current.panX * -0.12).toFixed(1)}px, ${
+                movementRef.current !== 'idle'
+                  ? (Math.sin(simRef.current.walkCycle * 2) * (isBoosting ? 10 : 6)).toFixed(1)
+                  : (Math.sin(Date.now() * 0.002) * 2).toFixed(1)
+              }px, 0) rotate(${
+                movementRef.current === 'left' ? -18 : movementRef.current === 'right' ? 18 : movementRef.current === 'backward' ? 180 : 0
+              }deg)`,
+            }}
+          >
+            {/* Cyber Visor & Helmet */}
+            <div className="w-10 h-10 rounded-full bg-zinc-900 border-2 border-cyan-400 flex items-center justify-center shadow-[0_0_25px_#4FD8E8] relative z-10">
+              <div className="w-6 h-2 rounded bg-cyan-300 shadow-[0_0_12px_#4FD8E8]" />
+              {/* Tactical Antenna */}
+              <div className="absolute -top-2 right-2 w-0.5 h-3 bg-cyan-400" />
+            </div>
+
+            {/* Armored Cyber Torso */}
+            <div className="w-16 h-20 bg-zinc-950 border border-cyan-500/70 rounded-2xl mt-1 flex items-center justify-center shadow-2xl relative z-10">
+              <div className="w-9 h-11 border border-cyan-400/40 rounded-lg bg-cyan-950/60 flex items-center justify-center">
+                <span className="text-[9px] text-cyan-300 font-bold tracking-widest">3RD-POV</span>
+              </div>
+              
+              {/* Tactical Jetpack Thrusters with Boost Flames */}
+              <div className="absolute -right-2 top-2 w-3 h-8 rounded-r-md bg-zinc-900 border border-cyan-500/50 flex flex-col justify-end items-center">
+                <div
+                  className={`w-2.5 rounded-full bg-cyan-400 blur-xs transition-all ${
+                    isBoosting ? 'h-6 bg-amber-400 animate-ping' : movementRef.current !== 'idle' ? 'h-3' : 'h-1 opacity-40'
+                  }`}
+                />
+              </div>
+              <div className="absolute -left-2 top-2 w-3 h-8 rounded-l-md bg-zinc-900 border border-cyan-500/50 flex flex-col justify-end items-center">
+                <div
+                  className={`w-2.5 rounded-full bg-cyan-400 blur-xs transition-all ${
+                    isBoosting ? 'h-6 bg-amber-400 animate-ping' : movementRef.current !== 'idle' ? 'h-3' : 'h-1 opacity-40'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Kinetic Animated Walking Legs */}
+            <div className="flex gap-4 mt-0.5 relative z-0">
+              <div
+                className="w-4 h-14 bg-zinc-900 border border-cyan-500/50 rounded-b-xl [transform-origin:top_center] transition-transform duration-75"
+                style={{
+                  transform: `rotate(${
+                    movementRef.current !== 'idle'
+                      ? (Math.sin(simRef.current.walkCycle) * (isBoosting ? 38 : 28)).toFixed(1)
+                      : 0
+                  }deg)`,
+                }}
+              >
+                <div className="w-full h-3 bg-cyan-400 rounded-b-xl mt-11 shadow-[0_0_12px_#4FD8E8]" />
+              </div>
+              <div
+                className="w-4 h-14 bg-zinc-900 border border-cyan-500/50 rounded-b-xl [transform-origin:top_center] transition-transform duration-75"
+                style={{
+                  transform: `rotate(${
+                    movementRef.current !== 'idle'
+                      ? (-Math.sin(simRef.current.walkCycle) * (isBoosting ? 38 : 28)).toFixed(1)
+                      : 0
+                  }deg)`,
+                }}
+              >
+                <div className="w-full h-3 bg-cyan-400 rounded-b-xl mt-11 shadow-[0_0_12px_#4FD8E8]" />
+              </div>
+            </div>
+
+            {/* Dynamic Holographic Ground Ripple */}
+            <div
+              className={`w-36 h-7 rounded-full bg-cyan-400/20 blur-md border border-cyan-400/60 transition-all duration-150 ${
+                movementRef.current !== 'idle' ? 'scale-125 opacity-100 animate-pulse' : 'scale-95 opacity-50'
+              }`}
+            />
+
+            {/* MC 3rd-Person Identity Badge */}
+            <div className="mt-2 px-3 py-0.5 rounded-full bg-zinc-950/90 border border-cyan-500/40 text-[9px] font-mono text-cyan-300 tracking-widest shadow-2xl flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              <span>OPERATOR MC // 3RD-PERSON POV</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 3. Volumetric 3D Particle Engine (Flying Atmospheric Cyber Dust & Speed Lines) */}
       <canvas
         ref={particleCanvasRef}
