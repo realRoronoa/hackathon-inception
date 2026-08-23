@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 
+import { conductSpatialResearch } from './services/researchAgent';
+
 // Load environment variables from .env
 dotenv.config();
 
@@ -25,6 +27,20 @@ app.use(express.json());
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Spatial Intelligence Research Endpoint (LLM-to-World Synthesis)
+app.post('/api/research', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const query = req.body?.query || req.body?.prompt || 'Autonomous spatial exploration';
+    console.log(`[RESEARCH ENDPOINT] Synthesizing blueprint for: "${query}"...`);
+
+    const result = await conductSpatialResearch(query);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error('[RESEARCH ENDPOINT ERROR]:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to conduct spatial research' });
+  }
 });
 
 // Reactor Token Exchange Proxy Route

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { AppState } from './types/simulation';
+import type { SpatialResearchPayload } from './types/simulation';
 import { LandingPage } from './components/LandingPage';
 import { LandingScreen } from './components/LandingScreen';
 import { ActiveSimulation } from './components/ActiveSimulation';
 
 export function App() {
   const [appState, setAppState] = useState<AppState>(AppState.LANDING);
-  const [userPrompt, setUserPrompt] = useState<string>('');
+  const [researchData, setResearchData] = useState<SpatialResearchPayload | null>(null);
   const [isLiveMode, setIsLiveMode] = useState<boolean>(
     import.meta.env.VITE_USE_LIVE_API === 'true'
   );
@@ -16,9 +17,9 @@ export function App() {
     setAppState(AppState.STUDIO);
   };
 
-  // Transition from Studio to Active Simulation
-  const handleStartSimulation = (prompt: string) => {
-    setUserPrompt(prompt);
+  // Transition from Studio to Active Simulation with LLM research data
+  const handleStartSimulation = (payload: SpatialResearchPayload) => {
+    setResearchData(payload);
     setAppState(AppState.ACTIVE);
   };
 
@@ -55,7 +56,8 @@ export function App() {
       {/* 3. ACTIVE GENERATIVE SIMULATION */}
       {appState === AppState.ACTIVE && (
         <ActiveSimulation
-          prompt={userPrompt}
+          prompt={researchData?.reactor_prompt || 'Urban spatial environment'}
+          researchData={researchData}
           isLiveMode={isLiveMode}
           onExit={handleExitSimulation}
         />

@@ -23,24 +23,30 @@ import { useKeyboardControls } from '../hooks/useKeyboardControls';
 import { LoadingScreen } from './LoadingScreen';
 import { MissionDebriefModal } from './MissionDebriefModal';
 import { soundFx } from '../engine/soundFx';
-import type { MovementDirection, LookDirection } from '../types/simulation';
+import type { MovementDirection, LookDirection, SpatialResearchPayload } from '../types/simulation';
 
 interface ActiveSimulationProps {
   prompt: string;
+  researchData?: SpatialResearchPayload | null;
   isLiveMode?: boolean;
   onExit: () => void;
 }
 
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   prompt: initialPrompt,
+  researchData,
   isLiveMode = false,
   onExit,
 }) => {
-  const [currentPrompt, setCurrentPrompt] = useState<string>(initialPrompt);
+  const effectivePrompt = researchData?.reactor_prompt || initialPrompt;
+  const [currentPrompt, setCurrentPrompt] = useState<string>(effectivePrompt);
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamSource, setStreamSource] = useState<VideoStreamSource | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
+
+  // Animated AR Scan Reticle on Connection
+  const [showScanReticle, setShowScanReticle] = useState(true);
 
   // Active Control States
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
@@ -72,6 +78,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const videoEngineRef = useRef<IVideoEngine | null>(null);
   const audioEngineRef = useRef<IAudioEngine | null>(null);
 
+  // Throttle command dispatching to avoid WebRTC buffer congestion (lag fix)
+  const lastDispatchTimeRef = useRef<number>(0);
+
   // Handle keyboard & mouse movement changes
   const handleMovementChange = useCallback((direction: MovementDirection) => {
     setActiveMovement(direction);
@@ -84,9 +93,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       setDistanceKm((prev) => prev + 0.05);
     }
 
-    if (videoEngineRef.current) {
-      videoEngineRef.current.sendMovement(direction);
+    const now = Date.now();
+    if (now - lastDispatchTimeRef.current > 75) {
+      lastDispatchTimeRef.current = now;
+      if (videoEngineRef.current) {
+        videoEngineRef.current.sendMovement(direction);
+      }
     }
+
     if (audioEngineRef.current) {
       audioEngineRef.current.setMovementState(direction !== 'idle');
     }
@@ -96,8 +110,12 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const handleLookChange = useCallback((direction: LookDirection) => {
     setActiveLook(direction);
 
-    if (videoEngineRef.current) {
-      videoEngineRef.current.sendLook(direction);
+    const now = Date.now();
+    if (now - lastDispatchTimeRef.current > 75) {
+      lastDispatchTimeRef.current = now;
+      if (videoEngineRef.current) {
+        videoEngineRef.current.sendLook(direction);
+      }
     }
   }, []);
 
@@ -117,6 +135,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     onLookChange: handleLookChange,
     enabled: isStreamReady && !errorMessage && !isConsoleOpen && !showDebrief,
   });
+
+  // Fade out AR Scan Reticle after 3.5 seconds
+  useEffect(() => {
+    if (isStreamReady) {
+      soundFx.playSuccessChime();
+      const t = setTimeout(() => setShowScanReticle(false), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [isStreamReady]);
 
   // Handle Snapshot Capture
   const handleCaptureSnapshot = useCallback(() => {
@@ -240,13 +267,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     const trimmed = consoleInput.trim();
     if (!trimmed) return;
 
+    const animePrompt = `${trimmed}, high-end anime cyberpunk art style, bold outlines, flat cel-shaded color blocks, neon lighting in high-contrast pairs, dark urban environment, kinetic atmospheric anime aesthetic.`;
+
     soundFx.playSuccessChime();
-    setCurrentPrompt(trimmed);
+    setCurrentPrompt(animePrompt);
     setConsoleInput('');
     setIsConsoleOpen(false);
 
     if (videoEngineRef.current?.setPrompt) {
-      await videoEngineRef.current.setPrompt(trimmed);
+      await videoEngineRef.current.setPrompt(animePrompt);
     }
 
     if (audioEngineRef.current) {
@@ -340,7 +369,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     (async () => {
       try {
-        await videoEngine.initialize(initialPrompt, (source: VideoStreamSource) => {
+        await videoEngine.initialize(effectivePrompt, (source: VideoStreamSource) => {
           if (!isSubscribed) return;
           setStreamSource(source);
           setIsStreamReady(true);
@@ -348,7 +377,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
         if (!isSubscribed) return;
         audioEngine.startAmbient();
-        audioEngine.playNarration(`Entering ${initialPrompt}`);
+        audioEngine.playNarration(`Entering ${effectivePrompt.split(',')[0]}`);
       } catch (error: any) {
         if (!isSubscribed) return;
         const msg = error?.message?.includes('429')
@@ -365,7 +394,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       videoEngineRef.current = null;
       audioEngineRef.current = null;
     };
-  }, [initialPrompt, isLiveMode]);
+  }, [effectivePrompt, isLiveMode]);
+
+  // Extract HUD insights or default
+  const hudInsights = researchData?.hud_insights || [
+    'Spatial Vector: 4.8m/s Flow',
+    'Acoustic Clearance: 18dB Damped',
+    'Neural Alignment: 99.4% Active',
+  ];
 
   return (
     <div className="relative w-full h-full min-h-screen bg-black overflow-hidden select-none font-mono">
@@ -373,7 +409,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Crystal-Clear Full-Screen Video Stream (No Scanlines, No Grain Filter) */}
+      {/* 2. Crystal-Clear Full-Screen Video Stream */}
       <video
         ref={videoRef}
         autoPlay
@@ -385,22 +421,38 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         }`}
       />
 
-      {/* 3. Subtle Edge Vignette (Non-intrusive) */}
+      {/* 3. Subtle Clean Edge Vignette */}
       {isStreamReady && !errorMessage && (
         <div
           className="absolute inset-0 pointer-events-none z-10"
           style={{
-            background: 'radial-gradient(ellipse at center, transparent 70%, rgba(0,0,0,0.5) 100%)',
+            background: 'radial-gradient(ellipse at center, transparent 75%, rgba(0,0,0,0.45) 100%)',
           }}
         />
       )}
 
-      {/* 4. Shutter Camera Flash */}
+      {/* 4. Holographic AR Scan Reticle on Connection */}
+      {isStreamReady && !errorMessage && showScanReticle && (
+        <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center transition-opacity duration-1000">
+          <div className="relative w-32 h-32 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
+            <div
+              className="absolute inset-2 border border-dashed border-cyan-400/40 rounded-full animate-spin"
+              style={{ animationDuration: '6s' }}
+            />
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_15px_#4FD8E8]" />
+            <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/80 px-2 py-0.5 border border-cyan-500/40 rounded">
+              AR SCAN LOCKED
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Shutter Camera Flash */}
       {isFlashing && (
         <div className="absolute inset-0 z-50 bg-white pointer-events-none opacity-90 transition-opacity duration-200" />
       )}
 
-      {/* 5. Error Modal */}
+      {/* 6. Error Modal */}
       {errorMessage && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-6">
           <div className="max-w-md w-full rounded-2xl border border-rose-900/80 bg-zinc-950/95 p-6 text-center space-y-6 shadow-[0_0_50px_rgba(225,29,72,0.25)]">
@@ -428,7 +480,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         </div>
       )}
 
-      {/* 6. Mission Debrief Modal on Exit */}
+      {/* 7. Mission Debrief Modal on Exit */}
       {showDebrief && (
         <MissionDebriefModal
           stats={{
@@ -444,7 +496,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         />
       )}
 
-      {/* 7. CLEAN CINEMATIC HUD OVERLAY */}
+      {/* 8. ANIME CYBERPUNK HUD & TELEMETRY SIDEBAR */}
       {isStreamReady && !errorMessage && !showDebrief && (
         <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 sm:p-8">
           
@@ -528,6 +580,41 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             </div>
           </div>
 
+          {/* RIGHT FROSTED-GLASS TELEMETRY SIDEBAR */}
+          <aside className="pointer-events-auto absolute right-4 top-24 w-80 backdrop-blur-xl bg-zinc-950/80 border-l border-cyan-500/30 p-5 text-white shadow-[0_0_20px_rgba(6,182,212,0.15)] rounded-2xl space-y-4 font-mono z-30">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-widest">
+                  SPATIAL TELEMETRY
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-400 border border-zinc-800 px-2 py-0.5 rounded bg-zinc-900/80">
+                LLM SYNC
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
+                Live HUD Insights
+              </span>
+              {hudInsights.map((insight, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-zinc-900/60 border border-cyan-500/10 hover:border-cyan-500/30 transition-all text-xs"
+                >
+                  <span className="text-cyan-400 font-bold mt-0.5">▶</span>
+                  <span className="text-zinc-200 leading-relaxed font-light">{insight}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500">
+              <span>ART STYLE: CEL-SHADED ANIME</span>
+              <span className="text-cyan-400">60 FPS</span>
+            </div>
+          </aside>
+
           {/* IN-GAME DIRECTIVE CONSOLE OVERLAY ([TAB]) */}
           {isConsoleOpen && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-md p-6 pointer-events-auto">
@@ -552,7 +639,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                     type="text"
                     value={consoleInput}
                     onChange={(e) => setConsoleInput(e.target.value)}
-                    placeholder="e.g. Add warm architectural lighting and reflections..."
+                    placeholder="e.g. Add glowing anime neon billboards and wet reflections..."
                     className="flex-1 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400"
                     autoFocus
                   />
