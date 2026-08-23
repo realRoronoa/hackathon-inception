@@ -135,8 +135,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
 
       if (res.ok) {
         const payload: SpatialResearchPayload = await res.json();
-        if (!payload.base_image || payload.base_image.startsWith('data:image/svg')) {
-          throw new Error('Imagen 3 failed to generate a photorealistic base image.');
+        if (!payload.base_image) {
+          throw new Error('Failed to generate concept blueprint image.');
         }
         setIsSynthesizing(false);
         setBlueprintPreview(payload);

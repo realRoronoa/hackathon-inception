@@ -217,10 +217,10 @@ export class ReactorEngine implements IVideoEngine {
 
     console.log(`[REACTOR ENGINE] Exchanging API key and initializing Reactor client with model: "reactor/lingbot"...`);
 
-    if (!baseImage || baseImage.startsWith('data:image/svg')) {
+    if (!baseImage) {
       console.warn('[REACTOR ENGINE] Aborting GPU session: Valid base concept image is required.');
       globalIsConnectingLock = false;
-      throw new Error('Simulation Aborted: No valid Imagen 3 photo generated. GPU session canceled to protect Reactor credits.');
+      throw new Error('Simulation Aborted: No concept image generated. GPU session canceled.');
     }
 
     try {
