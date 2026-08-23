@@ -51,79 +51,6 @@ async function resolveReactorJwt(apiKey: string): Promise<string> {
   }
 }
 
-/**
- * Creates a high-definition seed image canvas to anchor LingBot world generation
- */
-async function createSeedImageBlob(prompt: string): Promise<Blob> {
-  if (typeof document === 'undefined') {
-    return new Blob([], { type: 'image/jpeg' });
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 576;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return new Blob([], { type: 'image/jpeg' });
-
-  const norm = prompt.toLowerCase();
-  let grad1 = '#090d16';
-  let grad2 = '#131e3a';
-  let accent = '#38bdf8';
-
-  if (norm.includes('victorian')) {
-    grad1 = '#1a0f0f';
-    grad2 = '#361818';
-    accent = '#fb7185';
-  } else if (norm.includes('cyberpunk')) {
-    grad1 = '#0f051d';
-    grad2 = '#290b3a';
-    accent = '#e879f9';
-  } else if (norm.includes('orbital') || norm.includes('space')) {
-    grad1 = '#030712';
-    grad2 = '#0f172a';
-    accent = '#38bdf8';
-  }
-
-  // Draw deep ambient radial backdrop
-  const grad = ctx.createRadialGradient(512, 288, 50, 512, 288, 600);
-  grad.addColorStop(0, grad2);
-  grad.addColorStop(1, grad1);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 576);
-
-  // Draw perspective 3D grid
-  ctx.strokeStyle = accent;
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 1.5;
-
-  for (let x = 0; x <= 1024; x += 64) {
-    ctx.beginPath();
-    ctx.moveTo(x, 576);
-    ctx.lineTo(512 + (x - 512) * 0.15, 288);
-    ctx.stroke();
-  }
-
-  for (let y = 288; y <= 576; y += 28) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(1024, y);
-    ctx.stroke();
-  }
-
-  // Draw glowing horizon core
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = accent;
-  ctx.beginPath();
-  ctx.arc(512, 288, 90, 0, Math.PI * 2);
-  ctx.fill();
-
-  return new Promise<Blob>((resolve) => {
-    canvas.toBlob((blob) => {
-      resolve(blob || new Blob([], { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.95);
-  });
-}
-
 export class ReactorEngine implements IVideoEngine {
   private client: Reactor | null = null;
   private isConnected: boolean = false;
@@ -203,28 +130,23 @@ export class ReactorEngine implements IVideoEngine {
       // 5. Upload base concept image to anchor LingBot neural generation (Image-to-World)
       try {
         let file: File | null = null;
-        if (baseImage && baseImage.startsWith('data:image/svg+xml')) {
-          const seedBlob = await createSeedImageBlob(prompt);
-          file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
-        } else if (baseImage && baseImage.startsWith('data:')) {
-          const res = await fetch(baseImage);
-          const blob = await res.blob();
-          file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
-        } else if (baseImage) {
+        if (baseImage && (baseImage.startsWith('data:image/jpeg') || baseImage.startsWith('data:image/png') || baseImage.startsWith('http'))) {
+          console.log('[REACTOR ENGINE] Real concept photo detected, uploading to Reactor session...');
           const res = await fetch(baseImage);
           const blob = await res.blob();
           file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
         }
 
         if (file) {
-          console.log('[REACTOR ENGINE] Uploading seed image to Reactor session...');
           const imageRef = await this.client.uploadFile(file);
-          console.log('✅ BASE CONCEPT IMAGE UPLOADED TO REACTOR:', imageRef);
+          console.log('✅ BASE CONCEPT PHOTO UPLOADED TO REACTOR:', imageRef);
           await this.client.sendCommand('set_image', { image: imageRef });
-          console.log('[REACTOR ENGINE] Sent set_image with base concept anchor.');
+          console.log('[REACTOR ENGINE] Sent set_image with photo anchor.');
+        } else {
+          console.log('[REACTOR ENGINE] Generating direct 3D neural simulation from styled prompt...');
         }
       } catch (uploadErr) {
-        console.error('❌ SEED IMAGE UPLOAD FAILED (Booting text-only simulation):', uploadErr);
+        console.error('❌ SEED IMAGE UPLOAD FAILED (Proceeding with text simulation):', uploadErr);
       }
 
       const styledPrompt = applyMasterTheme(prompt);

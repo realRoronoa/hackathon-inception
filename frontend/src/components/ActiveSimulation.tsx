@@ -460,16 +460,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Ambient Concept Blueprint Underlay (Displays during neural diffusion warmup) */}
-      {researchData?.base_image && (
-        <img
-          src={researchData.base_image}
-          alt="Spatial Seed Concept"
-          className="absolute inset-0 w-full h-full object-cover opacity-60 filter blur-xs pointer-events-none transition-opacity duration-700"
-        />
-      )}
-
-      {/* 3. Crystal-Clear Full-Screen Video Stream */}
+      {/* 2. Crystal-Clear Full-Screen Video Stream */}
       <video
         ref={videoRef}
         autoPlay
