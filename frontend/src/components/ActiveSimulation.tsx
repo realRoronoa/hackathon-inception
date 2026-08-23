@@ -406,15 +406,30 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Full-Screen Interactive WebRTC Video Viewport */}
+      {/* 2. Seamless Reference Image Backdrop (Prevents Black Screen during WebRTC handshake) */}
+      {researchData?.base_image && (
+        <img
+          src={researchData.base_image}
+          alt="Spatial Environment Seed"
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none [transform:translateZ(0)]"
+        />
+      )}
+
+      {/* 3. Full-Screen Interactive WebRTC Video Viewport */}
       <video
         ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
+        onCanPlay={(e) => {
+          e.currentTarget.play().catch(() => {});
+        }}
+        onLoadedMetadata={(e) => {
+          e.currentTarget.play().catch(() => {});
+        }}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 [transform:translateZ(0)] ${
-          isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          streamSource ? 'opacity-100' : 'opacity-0'
         }`}
       />
 
