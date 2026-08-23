@@ -3,8 +3,6 @@ import {
   X,
   Volume2,
   VolumeX,
-  AlertTriangle,
-  RotateCcw,
   Camera,
   Terminal,
   Send,
@@ -15,6 +13,7 @@ import {
   Layers,
   Radio,
 } from 'lucide-react';
+import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
 import { ReactorEngine } from '../engine/ReactorEngine';
 import type { IVideoEngine, VideoStreamSource } from '../engine/videoEngine';
@@ -35,13 +34,13 @@ interface ActiveSimulationProps {
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   prompt: initialPrompt,
   researchData,
+  isLiveMode = false,
   onExit,
 }) => {
   const effectivePrompt = researchData?.reactor_prompt || initialPrompt;
   const [currentPrompt, setCurrentPrompt] = useState<string>(effectivePrompt);
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamSource, setStreamSource] = useState<VideoStreamSource | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
 
   // Animated AR Scan Reticle on Connection
@@ -141,31 +140,31 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     }
   }, [streamSource]);
 
-  // Mount effect: Initialize Reactor WebRTC directly with the generated Pollinations/Preset image
+  // Mount effect: Initialize Simulation Engine (Reactor WebRTC when Live, or Free Spatial Mode)
   useEffect(() => {
     let isSubscribed = true;
 
-    const videoEngine = new ReactorEngine();
+    const videoEngine = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
     const audioEngine = new MockAudioEngine();
 
     videoEngineRef.current = videoEngine;
     audioEngineRef.current = audioEngine;
 
-    // Instant reveal safeguard: Reveal environment if base image exists
+    // Instant reveal safeguard: Reveal environment immediately
     const readySafeguard = setTimeout(() => {
-      if (isSubscribed && researchData?.base_image) {
+      if (isSubscribed) {
         setIsStreamReady(true);
       }
-    }, 350);
+    }, 300);
 
     (async () => {
       try {
-        console.log('[ACTIVE SIMULATION] Initializing Reactor LingBot WebRTC with base image...');
+        console.log(`[ACTIVE SIMULATION] Initializing simulation (liveMode: ${isLiveMode})...`);
         await videoEngine.initialize(
           effectivePrompt,
           (source: VideoStreamSource) => {
             if (!isSubscribed) return;
-            console.log('✅ [ACTIVE SIMULATION] Received live Reactor WebRTC stream track!');
+            console.log('✅ [ACTIVE SIMULATION] Stream source ready!');
             setStreamSource(source);
             setIsStreamReady(true);
           },
@@ -178,21 +177,20 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       } catch (error: any) {
         if (!isSubscribed) return;
         const errStr = error?.message || '';
-        console.error('[ACTIVE SIMULATION] Reactor Engine initialization error:', errStr);
+        console.warn('[ACTIVE SIMULATION] Engine notice:', errStr);
 
-        const msg = errStr.includes('429')
-          ? 'Reactor GPU Capacity Full (429) — No available servers currently. Please retry in a few seconds.'
-          : errStr.includes('402') || errStr.includes('credits_depleted')
-          ? 'Reactor Credits Depleted (402) — Your account credits are depleted. Please add credits to start live GPU streaming.'
-          : `Reactor Connection Failed: ${errStr || 'Offline'}`;
-        setErrorMessage(msg);
+        // If live mode failed (e.g. credits depleted 402), seamlessly fall back to local interactive mode without breaking the experience!
+        setIsStreamReady(true);
+        if (errStr.includes('402') || errStr.includes('429') || errStr.includes('credits_depleted')) {
+          console.log('[ACTIVE SIMULATION] Seamlessly continuing in Free Interactive Spatial Mode...');
+        }
       }
     })();
 
     return () => {
       isSubscribed = false;
       clearTimeout(readySafeguard);
-      console.log('[ACTIVE SIMULATION] Unmounting: executing hard GPU session teardown...');
+      console.log('[ACTIVE SIMULATION] Unmounting: executing session teardown...');
       if (videoEngineRef.current) {
         videoEngineRef.current.disconnect();
         videoEngineRef.current = null;
@@ -202,7 +200,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         audioEngineRef.current = null;
       }
     };
-  }, [effectivePrompt, researchData?.base_image]);
+  }, [effectivePrompt, isLiveMode, researchData?.base_image]);
 
   // Pause remote GPU diffusion while modals are open or tab is hidden
   useEffect(() => {
@@ -378,7 +376,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   return (
     <div className="relative w-full h-full min-h-screen bg-black overflow-hidden select-none font-mono">
       {/* 1. Loading Screen */}
-      {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
+      {!isStreamReady && <LoadingScreen prompt={currentPrompt} />}
 
       {/* 2. Concept AI Generated World Blueprint (Base Layer - Guarantees zero blank screen) */}
       {researchData?.base_image && (
@@ -401,7 +399,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       />
 
       {/* 3. Subtle Clean Edge Vignette */}
-      {isStreamReady && !errorMessage && (
+      {isStreamReady && (
         <div
           className="absolute inset-0 pointer-events-none z-10"
           style={{
@@ -411,7 +409,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       )}
 
       {/* 4. Holographic AR Scan Reticle on Connection */}
-      {isStreamReady && !errorMessage && showScanReticle && (
+      {isStreamReady && showScanReticle && (
         <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center transition-opacity duration-1000">
           <div className="relative w-40 h-40 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
             <div
@@ -420,7 +418,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             />
             <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_15px_#4FD8E8]" />
             <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/90 px-2.5 py-0.5 border border-cyan-500/40 rounded shadow-lg">
-              REACTOR LINGBOT STREAM ACTIVE
+              {isLiveMode ? 'REACTOR LINGBOT STREAM ACTIVE' : 'SPATIAL SIMULATION ACTIVE'}
             </div>
           </div>
         </div>
@@ -431,37 +429,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         <div className="absolute inset-0 z-50 bg-white pointer-events-none opacity-90 transition-opacity duration-200" />
       )}
 
-      {/* 6. Explicit Error Screen on Reactor Failure */}
-      {errorMessage && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 p-6 backdrop-blur-md">
-          <div className="max-w-md w-full rounded-2xl border border-rose-500/40 bg-zinc-950/95 p-6 text-center space-y-4 shadow-[0_0_50px_rgba(244,63,94,0.2)]">
-            <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto animate-bounce" />
-            <h2 className="text-base font-bold text-rose-200 uppercase tracking-wider font-mono">
-              Reactor LingBot Stream Status
-            </h2>
-            <p className="text-xs text-zinc-300 font-mono leading-relaxed bg-zinc-900/80 p-3 rounded-xl border border-zinc-800">
-              {errorMessage}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => window.location.reload()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-xs font-mono uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-lg"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>Retry Connection</span>
-              </button>
-              <button
-                onClick={onExit}
-                className="px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs font-mono font-semibold hover:text-zinc-200 transition-all cursor-pointer"
-              >
-                Exit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Mission Debrief Modal on Exit */}
+      {/* 6. Mission Debrief Modal on Exit */}
       {showDebrief && (
         <MissionDebriefModal
           stats={{
@@ -478,7 +446,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       )}
 
       {/* 8. LIVE HUD OVERLAY & COCKPIT CONTROLS */}
-      {isStreamReady && !errorMessage && (
+      {isStreamReady && (
         <div className="absolute inset-0 z-30 pointer-events-none p-5 sm:p-7 flex flex-col justify-between">
           
           {/* TOP BAR */}
