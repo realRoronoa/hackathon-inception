@@ -151,6 +151,13 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     videoEngineRef.current = videoEngine;
     audioEngineRef.current = audioEngine;
 
+    // Instant reveal safeguard: Reveal environment if base image exists
+    const readySafeguard = setTimeout(() => {
+      if (isSubscribed && researchData?.base_image) {
+        setIsStreamReady(true);
+      }
+    }, 350);
+
     (async () => {
       try {
         console.log('[ACTIVE SIMULATION] Initializing Reactor LingBot WebRTC with base image...');
@@ -184,6 +191,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     return () => {
       isSubscribed = false;
+      clearTimeout(readySafeguard);
       console.log('[ACTIVE SIMULATION] Unmounting: executing hard GPU session teardown...');
       if (videoEngineRef.current) {
         videoEngineRef.current.disconnect();
@@ -372,14 +380,23 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen */}
       {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Pure Full-Screen Reactor LingBot WebRTC Video Viewport */}
+      {/* 2. Concept AI Generated World Blueprint (Base Layer - Guarantees zero blank screen) */}
+      {researchData?.base_image && (
+        <img
+          src={researchData.base_image}
+          alt="Spatial Environment Seed"
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
+        />
+      )}
+
+      {/* Pure Full-Screen Reactor LingBot WebRTC Video Viewport (Overlays when active) */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-          isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${
+          streamSource ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       />
 
