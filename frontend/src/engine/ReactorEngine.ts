@@ -75,6 +75,8 @@ export class ReactorEngine implements IVideoEngine {
         apiUrl: 'https://api.reactor.inc',
       });
 
+      let activeMediaStream: MediaStream | null = null;
+
       // 3. Listen for incoming WebRTC video stream track
       this.client.on('trackReceived', (name: string, track: MediaStreamTrack, stream: MediaStream) => {
         console.log(`🎥 ONTRACK FIRED. NAME: "${name}", KIND: "${track?.kind}"`, track, stream);
@@ -88,8 +90,7 @@ export class ReactorEngine implements IVideoEngine {
           console.log('✅ MAIN VIDEO STREAM ACTIVE AND ENABLED');
           this.isConnected = true;
 
-          const mediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
-          onStreamReady(mediaStream);
+          activeMediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
         }
       });
 
@@ -169,6 +170,20 @@ export class ReactorEngine implements IVideoEngine {
         console.log('[REACTOR ENGINE] Sent initial state anchors to LingBot.');
       } catch (cmdErr) {
         console.warn('[REACTOR ENGINE] Initial state anchor notice:', cmdErr);
+      }
+
+      // 8. Explicitly notify UI only AFTER image staging and start protocol are complete
+      if (activeMediaStream) {
+        onStreamReady(activeMediaStream);
+      } else {
+        const onLateTrack = (name: string, track: MediaStreamTrack, stream: MediaStream) => {
+          if (track?.kind === 'video' || name === 'main_video' || name === 'video') {
+            this.client?.off('trackReceived', onLateTrack);
+            const ms = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
+            onStreamReady(ms);
+          }
+        };
+        this.client.on('trackReceived', onLateTrack);
       }
     } catch (error) {
       console.error('[REACTOR ENGINE] Failed to initialize Reactor stream:', error);

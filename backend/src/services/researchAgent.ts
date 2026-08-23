@@ -278,7 +278,9 @@ export async function conductSpatialResearch(query: string): Promise<SpatialRese
     : `${rawPrompt}${ANIME_CYBERPUNK_SUFFIX}`;
 
   // 2. Vision Generation (Vision Client with independent Error Isolation)
+  console.time('IMAGE_GEN');
   const baseImage = await generateBaseImage(styledPrompt);
+  console.timeEnd('IMAGE_GEN');
 
   return {
     reactor_prompt: styledPrompt,

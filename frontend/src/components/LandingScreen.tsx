@@ -206,10 +206,10 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
                 <span>SPATIAL INTELLIGENCE AGENT</span>
               </div>
               <h3 className="text-lg font-bold tracking-tight text-white font-['Space_Grotesk']">
-                Synthesizing Spatial Blueprint
+                Synthesizing 4K Neural Blueprint & Compiling Spatial Matrix...
               </h3>
               <p className="text-xs font-mono text-cyan-300/80 leading-relaxed">
-                Agent synthesizing market research and compiling spatial blueprint...
+                Compiling spatial intelligence, acoustic clearance, and neural telemetry...
               </p>
             </div>
           </div>
