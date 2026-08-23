@@ -166,6 +166,9 @@ async function generatePhotographicSeed(prompt: string): Promise<File> {
 export class ReactorEngine implements IVideoEngine {
   private client: Reactor | null = null;
   private isConnected: boolean = false;
+  private lastMovement: string = 'idle';
+  private lastLookHorizontal: string = 'idle';
+  private lastLookVertical: string = 'idle';
 
   public async initialize(
     prompt: string,
@@ -205,17 +208,28 @@ export class ReactorEngine implements IVideoEngine {
 
       let activeMediaStream: MediaStream | null = null;
 
-      // 3. Listen for incoming WebRTC video stream track
+      // 3. Listen for incoming WebRTC video stream track with resolution constraints
       this.client.on('trackReceived', (name: string, track: MediaStreamTrack, stream: MediaStream) => {
         console.log(`🎥 ONTRACK FIRED. NAME: "${name}", KIND: "${track?.kind}"`, track, stream);
         track.enabled = true;
+
+        // Apply efficient decoding resolution constraints (720p @ 30fps)
+        if (track.kind === 'video') {
+          try {
+            track.applyConstraints?.({
+              width: { max: 1280, ideal: 1280 },
+              height: { max: 720, ideal: 720 },
+              frameRate: { max: 30, ideal: 30 },
+            }).catch(() => {});
+          } catch {}
+        }
 
         try {
           this.client?.resumeTrack(name || 'main_video');
         } catch {}
 
         if (track?.kind === 'video' || name === 'main_video' || name === 'video' || name.includes('video')) {
-          console.log('✅ MAIN VIDEO STREAM ACTIVE AND ENABLED');
+          console.log('✅ MAIN VIDEO STREAM ACTIVE AND OPTIMIZED');
           this.isConnected = true;
 
           const mediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
@@ -263,11 +277,16 @@ export class ReactorEngine implements IVideoEngine {
       await waitForReady;
       console.log('[REACTOR ENGINE] Connection ready. Instantly uploading pre-bundled reference image...');
 
-      // 5. Instantly upload pre-bundled seed image and set prompt
+      // 5. Instantly upload pre-bundled seed image and configure parameters
       const imageRef = await this.client.uploadFile(seedFile);
       console.log('✅ SEED IMAGE UPLOADED TO REACTOR (<200ms):', imageRef);
 
       await this.client.sendCommand('set_image', { image: imageRef });
+
+      // Seed & Rotation Stability: Lock seed to 42 to prevent temporal noise resets & compute spikes
+      await this.client.sendCommand('set_seed', { seed: 42 });
+      await this.client.sendCommand('set_rotation_speed_deg', { rotation_speed_deg: 5 });
+
       const styledPrompt = applyMasterTheme(prompt);
       await this.client.sendCommand('set_prompt', { prompt: styledPrompt });
       console.log(`[REACTOR ENGINE] Sent styled set_prompt: "${styledPrompt}"`);
@@ -343,8 +362,10 @@ export class ReactorEngine implements IVideoEngine {
           ? 'strafe_right'
           : 'idle';
 
+      if (movementValue === this.lastMovement) return;
+      this.lastMovement = movementValue;
+
       this.client.sendCommand('set_movement', { movement: movementValue });
-      console.log('[REACTOR ENGINE] Sent set_movement ->', movementValue);
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to send movement:', err);
     }
@@ -355,12 +376,18 @@ export class ReactorEngine implements IVideoEngine {
     try {
       if (direction === 'left' || direction === 'right' || direction === 'idle') {
         const horizontalValue = direction === 'left' ? 'left' : direction === 'right' ? 'right' : 'idle';
-        this.client.sendCommand('set_look_horizontal', { look_horizontal: horizontalValue });
+        if (horizontalValue !== this.lastLookHorizontal) {
+          this.lastLookHorizontal = horizontalValue;
+          this.client.sendCommand('set_look_horizontal', { look_horizontal: horizontalValue });
+        }
       }
 
       if (direction === 'up' || direction === 'down' || direction === 'idle') {
         const verticalValue = direction === 'up' ? 'up' : direction === 'down' ? 'down' : 'idle';
-        this.client.sendCommand('set_look_vertical', { look_vertical: verticalValue });
+        if (verticalValue !== this.lastLookVertical) {
+          this.lastLookVertical = verticalValue;
+          this.client.sendCommand('set_look_vertical', { look_vertical: verticalValue });
+        }
       }
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to send look:', err);
