@@ -124,70 +124,90 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     }
   }, []);
 
+  // Active Movement Reference for continuous velocity
+  const movementRef = useRef<MovementDirection>('idle');
+  const lookRef = useRef<LookDirection>('idle');
+
   // Hook up responsive WASD & Arrow keyboard controls
   useKeyboardControls({
     enabled: isStreamReady && !isConsoleOpen && !showDebrief,
     onMovementChange: (dir) => {
+      movementRef.current = dir;
       handleMovementChange(dir);
-      const s = simRef.current;
       if (videoRef.current) {
-        if (dir === 'forward') {
-          videoRef.current.playbackRate = 1.6;
-        } else if (dir === 'backward') {
-          videoRef.current.playbackRate = 0.6;
-        } else {
-          videoRef.current.playbackRate = 1.0;
-        }
-      }
-      if (dir === 'forward') {
-        s.targetZoom = Math.min(s.targetZoom + 0.08, 2.4);
-        s.walkCycle += 0.2;
-      } else if (dir === 'backward') {
-        s.targetZoom = Math.max(s.targetZoom - 0.08, 1.0);
-        s.walkCycle += 0.15;
-      } else if (dir === 'left') {
-        s.targetPanX = Math.min(s.targetPanX + 25, 340);
-        s.tiltY = Math.min(s.tiltY + 1.2, 9);
-      } else if (dir === 'right') {
-        s.targetPanX = Math.max(s.targetPanX - 25, -340);
-        s.tiltY = Math.max(s.tiltY - 1.2, -9);
+        videoRef.current.playbackRate = dir === 'forward' ? 1.6 : dir === 'backward' ? 0.6 : 1.0;
       }
     },
     onLookChange: (dir) => {
+      lookRef.current = dir;
       handleLookChange(dir);
-      const s = simRef.current;
-      if (dir === 'left') {
-        s.targetPanX = Math.min(s.targetPanX + 20, 360);
-        s.tiltY = Math.min(s.tiltY + 1.5, 12);
-      } else if (dir === 'right') {
-        s.targetPanX = Math.max(s.targetPanX - 20, -360);
-        s.tiltY = Math.max(s.tiltY - 1.5, -12);
-      } else if (dir === 'up') {
-        s.targetPanY = Math.min(s.targetPanY + 15, 200);
-        s.tiltX = Math.max(s.tiltX - 1.2, -10);
-      } else if (dir === 'down') {
-        s.targetPanY = Math.max(s.targetPanY - 15, -200);
-        s.tiltX = Math.min(s.tiltX + 1.2, 10);
-      }
     },
   });
 
-  // 60FPS Kinematic Camera Animation Loop
+  // 60FPS Organic Kinematic Camera & Continuous Locomotion Loop
   useEffect(() => {
     let animId: number;
 
     const updateKinematics = () => {
       const s = simRef.current;
+      const m = movementRef.current;
+      const l = lookRef.current;
+      const now = performance.now();
 
-      // Smooth Spring Lerp (12% per frame)
-      s.panX += (s.targetPanX - s.panX) * 0.12;
-      s.panY += (s.targetPanY - s.panY) * 0.12;
-      s.zoom += (s.targetZoom - s.zoom) * 0.12;
-      s.tiltX *= 0.95;
-      s.tiltY *= 0.95;
+      // 1. Continuous Locomotion (Holding WASD advances smoothly)
+      if (m === 'forward') {
+        s.targetZoom = Math.min(s.targetZoom + 0.005, 2.6);
+        s.walkCycle += 0.18;
+      } else if (m === 'backward') {
+        s.targetZoom = Math.max(s.targetZoom - 0.005, 1.0);
+        s.walkCycle += 0.12;
+      }
+
+      if (m === 'left') {
+        s.targetPanX = Math.min(s.targetPanX + 4, 380);
+        s.tiltY = Math.min(s.tiltY + 0.3, 8);
+      } else if (m === 'right') {
+        s.targetPanX = Math.max(s.targetPanX - 4, -380);
+        s.tiltY = Math.max(s.tiltY - 0.3, -8);
+      }
+
+      // 2. Continuous 360° Rotational Camera Aim (Arrow Keys / Mouse)
+      if (l === 'left') {
+        s.targetPanX = Math.min(s.targetPanX + 4, 400);
+        s.tiltY = Math.min(s.tiltY + 0.35, 12);
+      } else if (l === 'right') {
+        s.targetPanX = Math.max(s.targetPanX - 4, -400);
+        s.tiltY = Math.max(s.tiltY - 0.35, -12);
+      } else if (l === 'up') {
+        s.targetPanY = Math.min(s.targetPanY + 3, 220);
+        s.tiltX = Math.max(s.tiltX - 0.3, -10);
+      } else if (l === 'down') {
+        s.targetPanY = Math.max(s.targetPanY - 3, -220);
+        s.tiltX = Math.min(s.tiltX + 0.3, 10);
+      }
+
+      // 3. Continuous Organic Ambient Floating & Breathing Motion (Never completely static!)
+      const ambientSwayX = Math.sin(now * 0.0008) * 12;
+      const ambientSwayY = Math.cos(now * 0.0011) * 8;
+      const ambientBreath = Math.sin(now * 0.0006) * 0.012;
+
+      // 4. Dynamic Walking Cadence Bobbing
+      const walkBobY = m !== 'idle' ? Math.sin(s.walkCycle * 2) * 7 : 0;
+      const walkBobX = m !== 'idle' ? Math.cos(s.walkCycle) * 3 : 0;
+
+      // 5. Silky Smooth Spring Lerp (10% per frame)
+      s.panX += (s.targetPanX - s.panX) * 0.09;
+      s.panY += (s.targetPanY - s.panY) * 0.09;
+      s.zoom += (s.targetZoom - s.zoom) * 0.09;
+      s.tiltX *= 0.94;
+      s.tiltY *= 0.94;
+
+      const finalPanX = s.panX + ambientSwayX + walkBobX;
+      const finalPanY = s.panY + ambientSwayY + walkBobY;
+      const finalZoom = s.zoom + ambientBreath;
 
       if (viewportRef.current) {
-        viewportRef.current.style.transform = `translate3d(${s.panX.toFixed(2)}px, ${s.panY.toFixed(2)}px, 0) scale(${s.zoom.toFixed(3)}) rotateX(${s.tiltX.toFixed(2)}deg) rotateY(${s.tiltY.toFixed(2)}deg)`;
+        viewportRef.current.style.transform = `translate3d(${finalPanX.toFixed(2)}px, ${finalPanY.toFixed(2)}px, 0) scale(${finalZoom.toFixed(3)}) rotateX(${s.tiltX.toFixed(2)}deg) rotateY(${s.tiltY.toFixed(2)}deg)`;
       }
 
       animId = requestAnimationFrame(updateKinematics);
