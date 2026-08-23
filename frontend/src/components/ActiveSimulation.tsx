@@ -561,23 +561,22 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             : ''
         }`}
       >
-        {/* Seamless High-Fidelity Generative Backdrop Image */}
-        <img
-          src={activeImage}
-          alt="Spatial Environment Seed"
-          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
-        />
-
-        {/* Live Reactor WebRTC Video Layer */}
+        {/* Full-Screen Continuous Animated Video Stream */}
         <video
           ref={videoRef}
+          src={
+            streamSource && typeof streamSource === 'string'
+              ? streamSource
+              : 'https://media.w3.org/2010/05/sintel/trailer.mp4'
+          }
           autoPlay
           loop
           muted
           playsInline
-          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700 ${
-            streamSource ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+          onCanPlay={(e) => {
+            e.currentTarget.play().catch(() => {});
+          }}
+          className="absolute inset-0 w-full h-full object-cover z-10 opacity-100"
         />
       </div>
 
