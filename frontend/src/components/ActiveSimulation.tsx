@@ -15,10 +15,8 @@ import {
   Layers,
   Radio,
 } from 'lucide-react';
-import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
 import { ReactorEngine } from '../engine/ReactorEngine';
-import { FishAudioEngine } from '../engine/FishAudioEngine';
 import type { IVideoEngine, VideoStreamSource } from '../engine/videoEngine';
 import type { IAudioEngine } from '../engine/audioEngine';
 import { useKeyboardControls } from '../hooks/useKeyboardControls';
@@ -250,12 +248,12 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     }
   }, [streamSource]);
 
-  // Mount effect: Initialize Reactor WebRTC (passing reference image) with automatic fallback
+  // Mount effect: Initialize Reactor WebRTC with the generated base reference image
   useEffect(() => {
     let isSubscribed = true;
 
-    const videoEngine = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
-    const audioEngine = isLiveMode ? new FishAudioEngine() : new MockAudioEngine();
+    const videoEngine = new ReactorEngine();
+    const audioEngine = new MockAudioEngine();
 
     videoEngineRef.current = videoEngine;
     audioEngineRef.current = audioEngine;
@@ -286,40 +284,13 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       } catch (error: any) {
         if (!isSubscribed) return;
         const errStr = error?.message || '';
-        console.warn('[ACTIVE SIMULATION] Engine initialization notification:', errStr);
-
-        // Auto fallback to high-definition interactive presentation stream if credits depleted or capacity capped
-        if (errStr.includes('402') || errStr.includes('429') || errStr.includes('credits_depleted') || errStr.includes('capacity')) {
-          try {
-            console.log('[ACTIVE SIMULATION] Switching to interactive backup stream...');
-            const fallbackVideo = new MockVideoEngine();
-            const fallbackAudio = new MockAudioEngine();
-            videoEngineRef.current = fallbackVideo;
-            audioEngineRef.current = fallbackAudio;
-
-            await fallbackVideo.initialize(
-              effectivePrompt,
-              (source: VideoStreamSource) => {
-                if (!isSubscribed) return;
-                setStreamSource(source);
-                setIsStreamReady(true);
-              },
-              researchData?.base_image
-            );
-
-            if (!isSubscribed) return;
-            fallbackAudio.startAmbient();
-            return;
-          } catch (fallbackErr) {
-            console.error('[ACTIVE SIMULATION] Fallback failed:', fallbackErr);
-          }
-        }
+        console.warn('[ACTIVE SIMULATION] Reactor Engine initialization status:', errStr);
 
         const msg = errStr.includes('429')
-          ? 'Reactor GPU Cluster Capacity Full (429) — Launching Interactive Backup...'
+          ? 'Reactor GPU Capacity Full (429) — Please wait a moment and retry.'
           : errStr.includes('402') || errStr.includes('credits_depleted')
-          ? 'Reactor Credits Depleted — Launching Interactive Mode...'
-          : 'Connecting to Interactive World Stream...';
+          ? 'Reactor Credits Depleted (402) — Add credits to continue live GPU streaming.'
+          : `Reactor Connection Failed: ${errStr || 'Offline'}`;
         setErrorMessage(msg);
       }
     })();
