@@ -43,6 +43,20 @@ app.post('/api/research', async (req: Request, res: Response): Promise<void> => 
   }
 });
 
+// Gatekeeper VIP PIN Verification Route
+app.post('/api/verify-pin', (req: Request, res: Response): void => {
+  const { pin } = req.body || {};
+  const serverPin = process.env.VIP_ACCESS_PIN || '2026';
+
+  if (typeof pin === 'string' && pin.trim() === serverPin.trim()) {
+    console.log('[SECURITY] VIP Access Granted for PIN verification');
+    res.status(200).json({ success: true });
+  } else {
+    console.warn('[SECURITY] VIP Access Denied: Invalid PIN attempt');
+    res.status(401).json({ success: false, message: 'Access Denied: Invalid Access Key' });
+  }
+});
+
 // Reactor Token Exchange Proxy Route
 app.post('/api/reactor-token', async (req: Request, res: Response): Promise<void> => {
   try {

@@ -1,16 +1,28 @@
 import { useState } from 'react';
 import { AppState } from './types/simulation';
 import type { SpatialResearchPayload } from './types/simulation';
+import { LockScreen } from './components/LockScreen';
 import { LandingPage } from './components/LandingPage';
 import { LandingScreen } from './components/LandingScreen';
 import { ActiveSimulation } from './components/ActiveSimulation';
 
 export function App() {
+  // Gatekeeper Authorization State (Persisted in sessionStorage)
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(
+    () => sessionStorage.getItem('inception_auth') === 'true'
+  );
+
   const [appState, setAppState] = useState<AppState>(AppState.LANDING);
   const [researchData, setResearchData] = useState<SpatialResearchPayload | null>(null);
   const [isLiveMode, setIsLiveMode] = useState<boolean>(
     import.meta.env.VITE_USE_LIVE_API === 'true'
   );
+
+  // Handle successful PIN unlock
+  const handleUnlock = () => {
+    sessionStorage.setItem('inception_auth', 'true');
+    setIsAuthorized(true);
+  };
 
   // Transition from Landing Page to Studio
   const handleLaunchStudio = () => {
@@ -32,9 +44,15 @@ export function App() {
     setAppState(AppState.LANDING);
   };
 
+  // 1. GATEKEEPER LOCK SCREEN (If not authorized)
+  if (!isAuthorized) {
+    return <LockScreen onUnlock={handleUnlock} />;
+  }
+
+  // 2. MAIN APPLICATION 3-STEP ROUTING MACHINE
   return (
     <main className="w-screen h-screen overflow-hidden bg-black text-white select-none">
-      {/* 1. MARKETING LANDING PAGE */}
+      {/* STEP 1: MARKETING LANDING PAGE */}
       {appState === AppState.LANDING && (
         <LandingPage
           onLaunchStudio={handleLaunchStudio}
@@ -43,7 +61,7 @@ export function App() {
         />
       )}
 
-      {/* 2. SPATIAL STUDIO WORKSPACE */}
+      {/* STEP 2: SPATIAL STUDIO WORKSPACE */}
       {appState === AppState.STUDIO && (
         <LandingScreen
           onStartSimulation={handleStartSimulation}
@@ -53,7 +71,7 @@ export function App() {
         />
       )}
 
-      {/* 3. ACTIVE GENERATIVE SIMULATION */}
+      {/* STEP 3: ACTIVE GENERATIVE SIMULATION */}
       {appState === AppState.ACTIVE && (
         <ActiveSimulation
           prompt={researchData?.reactor_prompt || 'Urban spatial environment'}
