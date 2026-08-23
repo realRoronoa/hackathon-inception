@@ -22,7 +22,8 @@ export class MockVideoEngine implements IVideoEngine {
 
   public initialize(
     prompt: string,
-    onStreamReady: (source: VideoStreamSource) => void
+    onStreamReady: (source: VideoStreamSource) => void,
+    _baseImage?: string
   ): Promise<void> {
     console.log(`[MOCK VIDEO] Initializing stream with prompt: "${prompt}"...`);
 

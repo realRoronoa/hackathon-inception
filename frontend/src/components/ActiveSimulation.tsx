@@ -422,8 +422,37 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         audioEngine.playNarration(`Entering ${effectivePrompt.split(',')[0]}`);
       } catch (error: any) {
         if (!isSubscribed) return;
-        const msg = error?.message?.includes('429')
+        const errStr = error?.message || '';
+        if (errStr.includes('402') || errStr.includes('credits_depleted')) {
+          console.warn('[ACTIVE SIMULATION] Reactor credits depleted (402). Auto-switching to Offline Interactive Presentation Mode...');
+          try {
+            const fallbackVideo = new MockVideoEngine();
+            const fallbackAudio = new MockAudioEngine();
+            videoEngineRef.current = fallbackVideo;
+            audioEngineRef.current = fallbackAudio;
+
+            await fallbackVideo.initialize(
+              effectivePrompt,
+              (source: VideoStreamSource) => {
+                if (!isSubscribed) return;
+                setStreamSource(source);
+                setIsStreamReady(true);
+              },
+              researchData?.base_image
+            );
+
+            if (!isSubscribed) return;
+            fallbackAudio.startAmbient();
+            return;
+          } catch (fallbackErr) {
+            console.error('[ACTIVE SIMULATION] Fallback failed:', fallbackErr);
+          }
+        }
+
+        const msg = errStr.includes('429')
           ? 'Quota Cooldown (Wait 5s) — Reactor Rate Limit'
+          : errStr.includes('402') || errStr.includes('credits_depleted')
+          ? 'Reactor Credits Depleted — Add Credits to Resume Live GPU Stream'
           : 'Connection Failed — Reactor Stream Offline';
         setErrorMessage(msg);
       }
