@@ -372,8 +372,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           el.srcObject = null;
           el.src = streamSource;
         }
-        el.play().catch(() => {});
-      } catch {}
+        el.muted = true;
+        el.playsInline = true;
+        el.play().catch((playErr) => {
+          console.warn('[VIDEO ELEMENT] Autoplay play() rejected (user gesture may be needed):', playErr);
+        });
+      } catch (err) {
+        console.warn('[VIDEO ELEMENT] Attach error:', err);
+      }
     };
 
     attach(false);
