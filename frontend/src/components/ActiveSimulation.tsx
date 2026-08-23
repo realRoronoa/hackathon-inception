@@ -240,6 +240,13 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     videoEngineRef.current = videoEngine;
     audioEngineRef.current = audioEngine;
 
+    // Instant display safeguard: Reveal viewport immediately if base image is ready
+    const readySafeguardTimer = setTimeout(() => {
+      if (isSubscribed && researchData?.base_image) {
+        setIsStreamReady(true);
+      }
+    }, 450);
+
     (async () => {
       try {
         console.log('[ACTIVE SIMULATION] Initializing simulation engine with base reference image...');
@@ -299,6 +306,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     return () => {
       isSubscribed = false;
+      clearTimeout(readySafeguardTimer);
       console.log('[ACTIVE SIMULATION] Unmounting: executing hard GPU session teardown...');
       if (videoEngineRef.current) {
         videoEngineRef.current.disconnect();
@@ -492,6 +500,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         ref={viewportRef}
         className="absolute inset-0 w-full h-full [transform-origin:center_center] [will-change:transform]"
       >
+        {/* Seamless High-Fidelity Reference Image Backdrop (Guarantees zero black screen) */}
+        {researchData?.base_image && (
+          <img
+            src={researchData.base_image}
+            alt="Spatial Environment Seed"
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
+          />
+        )}
+
         {/* Full-Screen Continuous Interactive Video Viewport */}
         <video
           ref={videoRef}
@@ -503,7 +520,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           onCanPlay={(e) => {
             e.currentTarget.play().catch(() => {});
           }}
-          className="absolute inset-0 w-full h-full object-cover"
+          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700 ${
+            streamSource ? 'opacity-100' : 'opacity-40 mix-blend-screen'
+          }`}
         />
       </div>
 
