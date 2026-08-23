@@ -180,15 +180,15 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
     <div
       className="relative w-full h-full min-h-screen overflow-x-hidden overflow-y-auto select-none"
       style={{
-        backgroundColor: '#090C11',
-        color: '#E7ECF3',
+        backgroundColor: '#07090B',
+        color: '#F4F4F0',
         fontFamily: "'Inter', sans-serif",
         backgroundImage: `
-          linear-gradient(rgba(150, 170, 200, 0.08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(150, 170, 200, 0.08) 1px, transparent 1px)
+          radial-gradient(circle at 50% 25%, rgba(79, 216, 232, 0.04) 0%, transparent 60%),
+          radial-gradient(circle at center, rgba(150, 170, 200, 0.12) 1px, transparent 1px)
         `,
-        backgroundSize: '64px 64px',
-        backgroundPosition: 'center -1px',
+        backgroundSize: '100% 100%, 64px 64px',
+        WebkitFontSmoothing: 'antialiased',
       }}
     >
       {/* High-Tech LLM Synthesis Overlay */}

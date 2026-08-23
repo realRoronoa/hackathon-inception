@@ -16,14 +16,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div
       className="relative w-full h-full min-h-screen overflow-x-hidden overflow-y-auto select-none flex flex-col justify-between"
       style={{
-        backgroundColor: '#090C11',
-        color: '#E7ECF3',
+        backgroundColor: '#07090B',
+        color: '#F4F4F0',
         fontFamily: "'Inter', sans-serif",
         backgroundImage: `
-          linear-gradient(rgba(150, 170, 200, 0.14) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(150, 170, 200, 0.14) 1px, transparent 1px)
+          radial-gradient(circle at 50% 30%, rgba(79, 216, 232, 0.05) 0%, transparent 55%),
+          radial-gradient(circle at center, rgba(150, 170, 200, 0.12) 1px, transparent 1px)
         `,
-        backgroundSize: '64px 64px',
+        backgroundSize: '100% 100%, 64px 64px',
         WebkitFontSmoothing: 'antialiased',
       }}
     >
@@ -31,9 +31,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <header
         className="w-full flex items-center justify-between px-6 sm:px-10 py-5 border-b"
         style={{
-          borderColor: 'rgba(150, 170, 200, 0.14)',
-          background: 'linear-gradient(180deg, rgba(9,12,17,0.92), rgba(9,12,17,0.5))',
-          backdropFilter: 'blur(12px)',
+          borderColor: 'rgba(150, 170, 200, 0.12)',
+          background: 'linear-gradient(180deg, rgba(7,9,11,0.94), rgba(7,9,11,0.6))',
+          backdropFilter: 'blur(16px)',
         }}
       >
         {/* Brand */}
@@ -43,7 +43,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             style={{
               borderColor: '#4FD8E8',
               color: '#4FD8E8',
-              backgroundColor: 'rgba(79,216,232,0.06)',
+              backgroundColor: 'rgba(79,216,232,0.08)',
             }}
           >
             ◆
@@ -52,8 +52,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             className="text-[13px] tracking-wider"
             style={{ fontFamily: "'IBM Plex Mono', monospace" }}
           >
-            <b className="font-semibold text-[#E7ECF3]">INCEPTION</b>{' '}
-            <span className="text-[#5B6577]">/ SPATIAL</span>
+            <b className="font-semibold text-[#F4F4F0]">INCEPTION</b>{' '}
+            <span className="text-[#98A29A]">/ SPATIAL</span>
           </div>
         </div>
 
@@ -104,8 +104,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           style={{
             fontFamily: "'Space Grotesk', sans-serif",
             lineHeight: 1.08,
-            letterSpacing: '-0.015em',
-            color: '#E7ECF3',
+            letterSpacing: '-0.025em',
+            color: '#F4F4F0',
           }}
         >
           Step into the space <span style={{ color: '#4FD8E8', fontStyle: 'normal' }}>before</span> you build it.
@@ -114,36 +114,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* Subtitle */}
         <p
           className="text-base sm:text-[17px] leading-relaxed max-w-[520px] mx-auto mb-11"
-          style={{ color: '#8E9AAE', lineHeight: 1.65 }}
+          style={{ color: '#98A29A', lineHeight: 1.65 }}
         >
           Turn a floor plan, a pitch deck, or a rough idea into a{' '}
-          <b style={{ color: '#E7ECF3', fontWeight: 500 }}>navigable, real-time world</b>. Walk the layout, test how it
+          <b style={{ color: '#F4F4F0', fontWeight: 500 }}>navigable, real-time world</b>. Walk the layout, test how it
           flows, and feel the space before a single wall goes up.
         </p>
 
-        {/* CTA Button */}
+        {/* CTA Button with Alakazam-Style Breathing Glow */}
         <button
           onClick={onLaunchStudio}
-          className="group inline-flex items-center gap-2.5 px-7 py-4 text-[13px] tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-[0_0_40px_rgba(79,216,232,0.3)] hover:opacity-90 hover:-translate-y-0.5"
+          className="group inline-flex items-center gap-2.5 px-8 py-4 text-[13px] tracking-wider transition-all duration-300 cursor-pointer active:scale-95 shadow-[0_0_35px_rgba(79,216,232,0.32)] hover:shadow-[0_0_50px_rgba(79,216,232,0.5)] hover:-translate-y-0.5"
           style={{
             backgroundColor: '#4FD8E8',
             color: '#04262B',
             border: 'none',
             fontFamily: "'IBM Plex Mono', monospace",
-            fontWeight: 500,
+            fontWeight: 600,
             letterSpacing: '0.06em',
           }}
         >
           <span>ENTER SPATIAL STUDIO</span>
-          <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
+          <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
         </button>
 
         {/* Meta Stats */}
         <div
-          className="mt-7 flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-7 text-[11px] tracking-wider"
+          className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-7 text-[11px] tracking-wider"
           style={{
             fontFamily: "'IBM Plex Mono', monospace",
-            color: '#5B6577',
+            color: '#717D8A',
             letterSpacing: '0.05em',
           }}
         >
@@ -167,8 +167,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         className="w-full max-w-[900px] mx-auto px-6 py-6 border-t flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px]"
         style={{
           fontFamily: "'IBM Plex Mono', monospace",
-          borderColor: 'rgba(150, 170, 200, 0.14)',
-          color: '#5B6577',
+          borderColor: 'rgba(150, 170, 200, 0.12)',
+          color: '#717D8A',
         }}
       >
         <div className="flex items-center gap-2">

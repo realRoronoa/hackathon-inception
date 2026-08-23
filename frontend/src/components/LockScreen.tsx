@@ -99,13 +99,13 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
     <div
       className="relative w-screen h-screen overflow-hidden flex items-center justify-center select-none font-mono p-4"
       style={{
-        backgroundColor: '#090C11',
-        color: '#E7ECF3',
+        backgroundColor: '#07090B',
+        color: '#F4F4F0',
         backgroundImage: `
-          linear-gradient(rgba(150, 170, 200, 0.10) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(150, 170, 200, 0.10) 1px, transparent 1px)
+          radial-gradient(circle at 50% 50%, rgba(79, 216, 232, 0.05) 0%, transparent 60%),
+          radial-gradient(circle at center, rgba(150, 170, 200, 0.12) 1px, transparent 1px)
         `,
-        backgroundSize: '64px 64px',
+        backgroundSize: '100% 100%, 64px 64px',
       }}
     >
       {/* Background Radial Glow */}
