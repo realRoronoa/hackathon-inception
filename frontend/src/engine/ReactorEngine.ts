@@ -226,9 +226,23 @@ export class ReactorEngine implements IVideoEngine {
       await this.client.sendCommand('set_prompt', { prompt: styledPrompt });
       console.log(`[REACTOR ENGINE] Sent styled set_prompt: "${styledPrompt}"`);
 
-      // 6. Trigger start command to begin generation
+      // 6. Trigger start and unpause recvonly tracks
+      try {
+        this.client.resumeTrack('main_video');
+      } catch {}
+
       await this.client.sendCommand('start', {});
       console.log('[REACTOR ENGINE] Sent start command to LingBot.');
+
+      // 7. Send initial control anchors to trigger LingBot physics engine
+      try {
+        await this.client.sendCommand('set_movement', { movement: 'idle' });
+        await this.client.sendCommand('set_look_horizontal', { look_horizontal: 'idle' });
+        await this.client.sendCommand('set_look_vertical', { look_vertical: 'idle' });
+        console.log('[REACTOR ENGINE] Sent initial state anchors to LingBot.');
+      } catch (cmdErr) {
+        console.warn('[REACTOR ENGINE] Initial state anchor notice:', cmdErr);
+      }
     } catch (error) {
       console.error('[REACTOR ENGINE] Failed to initialize Reactor stream:', error);
       throw error;
