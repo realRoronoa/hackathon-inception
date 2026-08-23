@@ -241,7 +241,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  // 120-Second Strict Session Countdown Timer
+  // 120-Second Strict Session Countdown Timer with Hard Teardown
   useEffect(() => {
     if (!isStreamReady || errorMessage || showDebrief) return;
 
@@ -249,6 +249,16 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       setSessionTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          console.log('[ACTIVE SIMULATION] 120s timer reached 0:00: executing hard Reactor session disconnect...');
+          
+          // Hard GPU session teardown to stop billing immediately
+          if (videoEngineRef.current) {
+            videoEngineRef.current.disconnect();
+          }
+          if (audioEngineRef.current) {
+            audioEngineRef.current.stopAll();
+          }
+
           handleCaptureSnapshot();
           soundFx.playSuccessChime();
           setShowDebrief(true);
@@ -260,6 +270,27 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     return () => clearInterval(timer);
   }, [isStreamReady, errorMessage, showDebrief, handleCaptureSnapshot]);
+
+  // Window Unload & Refresh Protection
+  useEffect(() => {
+    const handleWindowUnload = () => {
+      console.log('[ACTIVE SIMULATION] Window unload/refresh detected: firing instant hard teardown...');
+      if (videoEngineRef.current) {
+        videoEngineRef.current.disconnect();
+      }
+      if (audioEngineRef.current) {
+        audioEngineRef.current.stopAll();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleWindowUnload);
+    window.addEventListener('pagehide', handleWindowUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleWindowUnload);
+      window.removeEventListener('pagehide', handleWindowUnload);
+    };
+  }, []);
 
   // Submit new In-Game Directive
   const handleConsoleSubmit = async (e?: React.FormEvent) => {
@@ -357,7 +388,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     }
   }, [streamSource]);
 
-  // Mount effect: Initialize video & audio engine
+  // Mount effect: Initialize video & audio engine with strict unmount cleanup
   useEffect(() => {
     let isSubscribed = true;
 
@@ -389,10 +420,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     return () => {
       isSubscribed = false;
-      videoEngine.disconnect();
-      audioEngine.stopAll();
-      videoEngineRef.current = null;
-      audioEngineRef.current = null;
+      console.log('[ACTIVE SIMULATION] Unmounting component: executing hard GPU session teardown...');
+      if (videoEngineRef.current) {
+        videoEngineRef.current.disconnect();
+        videoEngineRef.current = null;
+      }
+      if (audioEngineRef.current) {
+        audioEngineRef.current.stopAll();
+        audioEngineRef.current = null;
+      }
     };
   }, [effectivePrompt, isLiveMode]);
 
