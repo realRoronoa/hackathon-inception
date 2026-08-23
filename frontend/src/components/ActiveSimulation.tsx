@@ -271,7 +271,6 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       const s = simRef.current;
       const m = movementRef.current;
       const l = lookRef.current;
-      const now = performance.now();
 
       // 1. Continuous Locomotion (Holding WASD advances smoothly)
       const zoomStep = isBoosting ? 0.015 : 0.006;
@@ -310,31 +309,8 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         s.tiltX = Math.min(s.tiltX + 0.35, 12);
       }
 
+      // Update Compass Heading
       setCompassHeading(Math.round(s.headingDeg));
-
-      // 3. Continuous Organic Ambient Floating & Breathing Motion (Never completely static!)
-      const ambientSwayX = Math.sin(now * 0.0008) * 14;
-      const ambientSwayY = Math.cos(now * 0.0011) * 9;
-      const ambientBreath = Math.sin(now * 0.0006) * 0.015;
-
-      // 4. Dynamic Walking Cadence Bobbing
-      const walkBobY = m !== 'idle' ? Math.sin(s.walkCycle * 2) * (isBoosting ? 12 : 7) : 0;
-      const walkBobX = m !== 'idle' ? Math.cos(s.walkCycle) * 3 : 0;
-
-      // 5. Silky Smooth Spring Lerp (10% per frame)
-      s.panX += (s.targetPanX - s.panX) * 0.1;
-      s.panY += (s.targetPanY - s.panY) * 0.1;
-      s.zoom += (s.targetZoom - s.zoom) * 0.1;
-      s.tiltX *= 0.94;
-      s.tiltY *= 0.94;
-
-      const finalPanX = s.panX + ambientSwayX + walkBobX;
-      const finalPanY = s.panY + ambientSwayY + walkBobY;
-      const finalZoom = s.zoom + ambientBreath;
-
-      if (viewportRef.current) {
-        viewportRef.current.style.transform = `translate3d(${finalPanX.toFixed(2)}px, ${finalPanY.toFixed(2)}px, 0) scale(${finalZoom.toFixed(3)}) rotateX(${s.tiltX.toFixed(2)}deg) rotateY(${s.tiltY.toFixed(2)}deg)`;
-      }
 
       animId = requestAnimationFrame(updateKinematics);
     };
@@ -607,16 +583,16 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
       {/* 3. Authentic 3rd-Person Main Character (MC) with Real-Time Animated Walking Strides */}
       {isStreamReady && (
-        <div className="absolute inset-x-0 bottom-10 z-25 pointer-events-none flex flex-col items-center justify-end">
+        <div className="absolute inset-x-0 bottom-8 z-25 pointer-events-none flex flex-col items-center justify-end">
           <div
-            className="relative flex flex-col items-center transition-transform duration-150 ease-out"
+            className="relative flex flex-col items-center transition-transform duration-100 ease-out"
             style={{
-              transform: `translate3d(${(simRef.current.panX * -0.12).toFixed(1)}px, ${
+              transform: `translate3d(0, ${
                 movementRef.current !== 'idle'
-                  ? (Math.sin(simRef.current.walkCycle * 2) * (isBoosting ? 10 : 6)).toFixed(1)
+                  ? (Math.sin(simRef.current.walkCycle * 2) * (isBoosting ? 8 : 5)).toFixed(1)
                   : (Math.sin(Date.now() * 0.002) * 2).toFixed(1)
               }px, 0) rotate(${
-                movementRef.current === 'left' ? -18 : movementRef.current === 'right' ? 18 : movementRef.current === 'backward' ? 180 : 0
+                movementRef.current === 'left' ? -15 : movementRef.current === 'right' ? 15 : movementRef.current === 'backward' ? 180 : 0
               }deg)`,
             }}
           >
