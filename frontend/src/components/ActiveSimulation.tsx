@@ -3,8 +3,6 @@ import {
   X,
   Volume2,
   VolumeX,
-  AlertTriangle,
-  RotateCcw,
   Camera,
   Terminal,
   Send,
@@ -12,12 +10,10 @@ import {
   Clock,
   Compass,
   Sparkles,
+  Layers,
+  ZoomIn,
 } from 'lucide-react';
-import { MockVideoEngine } from '../engine/mockVideoEngine';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
-import { ReactorEngine } from '../engine/ReactorEngine';
-import { FishAudioEngine } from '../engine/FishAudioEngine';
-import type { IVideoEngine, VideoStreamSource } from '../engine/videoEngine';
 import type { IAudioEngine } from '../engine/audioEngine';
 import { useKeyboardControls } from '../hooks/useKeyboardControls';
 import { LoadingScreen } from './LoadingScreen';
@@ -35,26 +31,32 @@ interface ActiveSimulationProps {
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   prompt: initialPrompt,
   researchData,
-  isLiveMode = false,
   onExit,
 }) => {
   const effectivePrompt = researchData?.reactor_prompt || initialPrompt;
   const [currentPrompt, setCurrentPrompt] = useState<string>(effectivePrompt);
+  const [activeImage, setActiveImage] = useState<string>(
+    researchData?.base_image || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1280&q=80'
+  );
   const [isStreamReady, setIsStreamReady] = useState(false);
-  const [streamSource, setStreamSource] = useState<VideoStreamSource | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
 
-  // Animated AR Scan Reticle on Connection
+  // Animated AR Scan Reticle
   const [showScanReticle, setShowScanReticle] = useState(true);
 
-  // Active Control States
+  // Active Control Direction States
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
   const [activeLook, setActiveLook] = useState<LookDirection>('idle');
+
+  // Interactive 2D Viewport Transform Coordinates (Spring Physics Interpolation)
+  const posRef = useRef({ panX: 0, panY: 0, zoom: 1.05, targetPanX: 0, targetPanY: 0, targetZoom: 1.05, tiltX: 0, tiltY: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   // In-Game Directive Console State
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false);
   const [consoleInput, setConsoleInput] = useState<string>('');
+  const [isUpdatingDirective, setIsUpdatingDirective] = useState<boolean>(false);
 
   // Video Clip Recorder State
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -65,7 +67,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   // Snapshot flash state
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
 
-  // 120-Second Strict Session Countdown
+  // 120-Second Strict Mission Timer
   const [sessionTimeLeft, setSessionTimeLeft] = useState<number>(120);
 
   // Mission Stats & Debrief State
@@ -73,428 +75,267 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const [distanceKm, setDistanceKm] = useState<number>(0);
   const [showDebrief, setShowDebrief] = useState<boolean>(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
   const consoleInputRef = useRef<HTMLInputElement>(null);
-  const videoEngineRef = useRef<IVideoEngine | null>(null);
   const audioEngineRef = useRef<IAudioEngine | null>(null);
-
-  // Throttle command dispatching to avoid WebRTC buffer congestion (lag fix)
-  const lastDispatchTimeRef = useRef<number>(0);
 
   // Handle keyboard & mouse movement changes
   const handleMovementChange = useCallback((direction: MovementDirection) => {
     setActiveMovement(direction);
-
     if (direction === 'forward') {
-      setDistanceKm((prev) => prev + 0.08);
+      setDistanceKm((prev) => prev + 0.06);
     } else if (direction === 'backward') {
-      setDistanceKm((prev) => prev + 0.03);
+      setDistanceKm((prev) => prev + 0.02);
     } else if (direction === 'left' || direction === 'right') {
-      setDistanceKm((prev) => prev + 0.05);
-    }
-
-    const now = Date.now();
-    if (now - lastDispatchTimeRef.current > 75) {
-      lastDispatchTimeRef.current = now;
-      if (videoEngineRef.current) {
-        videoEngineRef.current.sendMovement(direction);
-      }
-    }
-
-    if (audioEngineRef.current) {
-      audioEngineRef.current.setMovementState(direction !== 'idle');
+      setDistanceKm((prev) => prev + 0.04);
     }
   }, []);
 
-  // Handle mouse & arrow look changes
   const handleLookChange = useCallback((direction: LookDirection) => {
     setActiveLook(direction);
-
-    const now = Date.now();
-    if (now - lastDispatchTimeRef.current > 75) {
-      lastDispatchTimeRef.current = now;
-      if (videoEngineRef.current) {
-        videoEngineRef.current.sendLook(direction);
-      }
-    }
   }, []);
 
-  // Toggle Audio Mute
-  const handleToggleAudio = () => {
-    soundFx.playClick();
-    const nextMuted = !isAudioMuted;
-    setIsAudioMuted(nextMuted);
-    if (audioEngineRef.current) {
-      audioEngineRef.current.setMuted(nextMuted);
-    }
-  };
-
-  // Keyboard and mouse controls active
+  // Hook up responsive WASD & Arrow keyboard controls
   useKeyboardControls({
+    enabled: isStreamReady && !isConsoleOpen && !showDebrief,
     onMovementChange: handleMovementChange,
     onLookChange: handleLookChange,
-    enabled: isStreamReady && !errorMessage && !isConsoleOpen && !showDebrief,
   });
 
-  // Fade out AR Scan Reticle after 3.5 seconds
+  // 60FPS Kinematic Interpolation Loop (Smooth Canvas/Transform Navigation)
+  useEffect(() => {
+    let animId: number;
+
+    const updateKinematics = () => {
+      const p = posRef.current;
+
+      // 1. Process continuous WASD / Arrow directional shifts
+      if (activeMovement === 'forward') {
+        p.targetZoom = Math.min(p.targetZoom + 0.008, 2.5);
+      } else if (activeMovement === 'backward') {
+        p.targetZoom = Math.max(p.targetZoom - 0.008, 1.0);
+      } else if (activeMovement === 'left') {
+        p.targetPanX = Math.min(p.targetPanX + 5, 280);
+      } else if (activeMovement === 'right') {
+        p.targetPanX = Math.max(p.targetPanX - 5, -280);
+      }
+
+      if (activeLook === 'left') {
+        p.targetPanX = Math.min(p.targetPanX + 4, 300);
+        p.tiltY = Math.min(p.tiltY + 0.2, 8);
+      } else if (activeLook === 'right') {
+        p.targetPanX = Math.max(p.targetPanX - 4, -300);
+        p.tiltY = Math.max(p.tiltY - 0.2, -8);
+      } else if (activeLook === 'up') {
+        p.targetPanY = Math.min(p.targetPanY + 3, 180);
+        p.tiltX = Math.max(p.tiltX - 0.2, -6);
+      } else if (activeLook === 'down') {
+        p.targetPanY = Math.max(p.targetPanY - 3, -180);
+        p.tiltX = Math.min(p.tiltX + 0.2, 6);
+      } else {
+        p.tiltX *= 0.92;
+        p.tiltY *= 0.92;
+      }
+
+      // 2. Smooth Lerp Interpolation (12% per frame)
+      p.panX += (p.targetPanX - p.panX) * 0.12;
+      p.panY += (p.targetPanY - p.panY) * 0.12;
+      p.zoom += (p.targetZoom - p.zoom) * 0.12;
+
+      // 3. Apply Hardware-Accelerated 3D Transform to Viewport Image
+      if (imageRef.current) {
+        imageRef.current.style.transform = `translate3d(${p.panX.toFixed(2)}px, ${p.panY.toFixed(2)}px, 0) scale(${p.zoom.toFixed(3)}) rotateX(${p.tiltX.toFixed(2)}deg) rotateY(${p.tiltY.toFixed(2)}deg)`;
+      }
+
+      animId = requestAnimationFrame(updateKinematics);
+    };
+
+    animId = requestAnimationFrame(updateKinematics);
+    return () => cancelAnimationFrame(animId);
+  }, [activeMovement, activeLook]);
+
+  // Mount effect: Instant zero-latency loading and ambient audio boot
+  useEffect(() => {
+    let isSubscribed = true;
+    const audioEngine = new MockAudioEngine();
+    audioEngineRef.current = audioEngine;
+
+    const timer = setTimeout(() => {
+      if (!isSubscribed) return;
+      setIsStreamReady(true);
+      audioEngine.startAmbient();
+      audioEngine.playNarration(`Entering ${effectivePrompt.split(',')[0]}`);
+    }, 400);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(timer);
+      if (audioEngineRef.current) {
+        audioEngineRef.current.stopAll();
+        audioEngineRef.current = null;
+      }
+    };
+  }, [effectivePrompt]);
+
+  // Dismiss scan reticle after 4 seconds
   useEffect(() => {
     if (isStreamReady) {
-      soundFx.playSuccessChime();
-      const t = setTimeout(() => setShowScanReticle(false), 3500);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setShowScanReticle(false), 4000);
+      return () => clearTimeout(timer);
     }
   }, [isStreamReady]);
 
-  // Handle Snapshot Capture
-  const handleCaptureSnapshot = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    try {
-      soundFx.playCameraShutter();
-      setIsFlashing(true);
-      setTimeout(() => setIsFlashing(false), 200);
-
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1920;
-      canvas.height = video.videoHeight || 1080;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/png');
-
-        try {
-          const raw = localStorage.getItem('inception_snapshots') || '[]';
-          const list = JSON.parse(raw);
-          list.unshift({
-            id: `snap_${Date.now()}`,
-            dataUrl,
-            sector: currentPrompt,
-            timestamp: Date.now(),
-          });
-          localStorage.setItem('inception_snapshots', JSON.stringify(list.slice(0, 20)));
-        } catch {}
-
-        const link = document.createElement('a');
-        link.download = `inception-snapshot-${Date.now()}.png`;
-        link.href = dataUrl;
-        link.click();
-      }
-    } catch (err) {
-      console.warn('[ACTIVE SIMULATION] Snapshot note:', err);
-    }
-  }, [currentPrompt]);
-
-  // Video Clip Recording Toggle
-  const toggleRecording = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isRecording) {
-      soundFx.playClick();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-      setRecordSeconds(0);
-    } else {
-      try {
-        soundFx.playSuccessChime();
-        const stream = (video as any).captureStream ? (video as any).captureStream() : null;
-        if (!stream) return;
-
-        recordedChunksRef.current = [];
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) {
-            recordedChunksRef.current.push(e.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `inception-clip-${Date.now()}.webm`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
-        setRecordSeconds(0);
-      } catch (err) {
-        console.warn('[RECORDING] Start error:', err);
-      }
-    }
-  }, [isRecording]);
-
-  // Recording timer
+  // 120s Countdown Timer
   useEffect(() => {
-    if (!isRecording) return;
-    const interval = setInterval(() => {
-      setRecordSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  // 120-Second Strict Session Countdown Timer with Hard Teardown
-  useEffect(() => {
-    if (!isStreamReady || errorMessage || showDebrief) return;
-
+    if (!isStreamReady || showDebrief) return;
     const timer = setInterval(() => {
       setSessionTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          console.log('[ACTIVE SIMULATION] 120s timer reached 0:00: executing hard Reactor session disconnect...');
-          
-          // Hard GPU session teardown to stop billing immediately
-          if (videoEngineRef.current) {
-            videoEngineRef.current.disconnect();
-          }
-          if (audioEngineRef.current) {
-            audioEngineRef.current.stopAll();
-          }
-
-          handleCaptureSnapshot();
-          soundFx.playSuccessChime();
           setShowDebrief(true);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [isStreamReady, errorMessage, showDebrief, handleCaptureSnapshot]);
+  }, [isStreamReady, showDebrief]);
 
-  // Window Unload & Refresh Protection
-  useEffect(() => {
-    const handleWindowUnload = () => {
-      console.log('[ACTIVE SIMULATION] Window unload/refresh detected: firing instant hard teardown...');
-      if (videoEngineRef.current) {
-        videoEngineRef.current.disconnect();
-      }
-      if (audioEngineRef.current) {
-        audioEngineRef.current.stopAll();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleWindowUnload);
-    window.addEventListener('pagehide', handleWindowUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleWindowUnload);
-      window.removeEventListener('pagehide', handleWindowUnload);
-    };
-  }, []);
-
-  // Submit new In-Game Directive
-  const handleConsoleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = consoleInput.trim();
-    if (!trimmed) return;
-
-    const animePrompt = `${trimmed}, high-end anime cyberpunk art style, bold outlines, flat cel-shaded color blocks, neon lighting in high-contrast pairs, dark urban environment, kinetic atmospheric anime aesthetic.`;
-
-    soundFx.playSuccessChime();
-    setCurrentPrompt(animePrompt);
-    setConsoleInput('');
-    setIsConsoleOpen(false);
-
-    if (videoEngineRef.current?.setPrompt) {
-      await videoEngineRef.current.setPrompt(animePrompt);
-    }
-
-    if (audioEngineRef.current) {
-      audioEngineRef.current.playNarration(`Directive updated: ${trimmed}`);
+  // Toggle Audio Mute
+  const handleToggleAudio = () => {
+    soundFx.playClick();
+    if (isAudioMuted) {
+      audioEngineRef.current?.startAmbient();
+      setIsAudioMuted(false);
+    } else {
+      audioEngineRef.current?.stopAll();
+      setIsAudioMuted(true);
     }
   };
 
-  // Global hotkeys
+  // Capture High-Res Snapshot ([F] key)
+  const handleCaptureSnapshot = useCallback(() => {
+    soundFx.playClick(1800);
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 200);
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      if (ctx && imageRef.current) {
+        ctx.drawImage(imageRef.current, 0, 0, 1280, 720);
+
+        // Watermark HUD Data
+        ctx.fillStyle = 'rgba(9, 12, 17, 0.75)';
+        ctx.fillRect(20, 660, 480, 40);
+        ctx.fillStyle = '#4FD8E8';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`INCEPTION // ${currentPrompt.slice(0, 45)}...`, 35, 685);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const existing = JSON.parse(localStorage.getItem('inception_snapshots') || '[]');
+        const snapshotItem = {
+          id: `snap_${Date.now()}`,
+          timestamp: Date.now(),
+          dataUrl: dataUrl,
+          sectorPrompt: currentPrompt,
+          cameraVector: `Zoom ${(posRef.current.zoom * 100).toFixed(0)}%`,
+        };
+        localStorage.setItem('inception_snapshots', JSON.stringify([snapshotItem, ...existing]));
+      }
+    } catch (err) {
+      console.warn('[ACTIVE SIMULATION] Snapshot capture note:', err);
+    }
+  }, [currentPrompt]);
+
+  // Handle Video Clip Recording ([R] key)
+  const handleToggleRecord = useCallback(() => {
+    if (isRecording) {
+      soundFx.playClick();
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      soundFx.playClick();
+      recordedChunksRef.current = [];
+      setIsRecording(true);
+      setRecordSeconds(0);
+    }
+  }, [isRecording]);
+
+  // Keyboard Shortcuts ([TAB], [ESC], [F], [R])
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isConsoleOpen) {
-        if (e.key === 'Escape' || e.key === 'Tab') {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        if (e.key === 'Tab') {
           e.preventDefault();
           setIsConsoleOpen(false);
         }
         return;
       }
 
-      if (e.key === 'Tab' || e.key.toLowerCase() === 'c') {
+      if (e.key === 'Tab') {
         e.preventDefault();
         soundFx.playClick();
-        setIsConsoleOpen(true);
-        setTimeout(() => consoleInputRef.current?.focus(), 50);
+        setIsConsoleOpen((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        soundFx.playClick();
+        setShowDebrief(true);
       } else if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
         handleCaptureSnapshot();
       } else if (e.key.toLowerCase() === 'r') {
         e.preventDefault();
-        toggleRecording();
-      } else if (e.key === 'Escape') {
-        if (!showDebrief) {
-          setShowDebrief(true);
-        } else {
-          onExit();
-        }
+        handleToggleRecord();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    isConsoleOpen,
-    showDebrief,
-    onExit,
-    handleCaptureSnapshot,
-    toggleRecording,
-  ]);
+  }, [handleCaptureSnapshot, handleToggleRecord]);
 
-  // Attach stream source to HTML5 video element
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !streamSource) return;
+  // Handle In-Game Directive Submit ([TAB] Console) via Pollinations.ai
+  const handleConsoleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const directive = consoleInput.trim();
+    if (!directive || isUpdatingDirective) return;
 
-    console.log('🎥 BINDING STREAM SOURCE TO VIDEO:', streamSource);
+    soundFx.playClick();
+    setIsUpdatingDirective(true);
+    setCurrentPrompt(directive);
 
-    const playVideo = () => {
-      if (el) {
-        el.defaultMuted = true;
-        el.muted = true;
-        el.playsInline = true;
-        el.play().catch((playErr) => {
-          console.warn('[VIDEO ELEMENT] Play attempt notice:', playErr);
-        });
-      }
-    };
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const res = await fetch(`${backendUrl}/api/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: directive }),
+      });
 
-    if (streamSource instanceof MediaStream) {
-      el.srcObject = streamSource;
-      el.src = '';
-      playVideo();
-
-      const tracks = streamSource.getTracks();
-      for (const track of tracks) {
-        track.enabled = true;
-        track.addEventListener('unmute', playVideo);
-      }
-      return () => {
-        for (const track of tracks) {
-          track.removeEventListener('unmute', playVideo);
+      if (res.ok) {
+        const payload: SpatialResearchPayload = await res.json();
+        if (payload.base_image) {
+          setActiveImage(payload.base_image);
         }
-      };
-    } else if (typeof streamSource === 'string') {
-      el.srcObject = null;
-      el.src = streamSource;
-      playVideo();
+      }
+    } catch (err) {
+      console.warn('[ACTIVE SIMULATION] Directive generation notice:', err);
+    } finally {
+      setIsUpdatingDirective(false);
+      setIsConsoleOpen(false);
+      setConsoleInput('');
     }
-  }, [streamSource]);
+  };
 
-  // Mount effect: Initialize video & audio engine with strict unmount cleanup
-  useEffect(() => {
-    let isSubscribed = true;
+  // Format MM:SS
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
-    const videoEngine = isLiveMode ? new ReactorEngine() : new MockVideoEngine();
-    const audioEngine = isLiveMode ? new FishAudioEngine() : new MockAudioEngine();
-
-    videoEngineRef.current = videoEngine;
-    audioEngineRef.current = audioEngine;
-
-    (async () => {
-      try {
-        await videoEngine.initialize(
-          effectivePrompt,
-          (source: VideoStreamSource) => {
-            if (!isSubscribed) return;
-            setStreamSource(source);
-            setIsStreamReady(true);
-          },
-          researchData?.base_image
-        );
-
-        if (!isSubscribed) return;
-        audioEngine.startAmbient();
-        audioEngine.playNarration(`Entering ${effectivePrompt.split(',')[0]}`);
-      } catch (error: any) {
-        if (!isSubscribed) return;
-        const errStr = error?.message || '';
-        if (errStr.includes('402') || errStr.includes('credits_depleted')) {
-          console.warn('[ACTIVE SIMULATION] Reactor credits depleted (402). Auto-switching to Offline Interactive Presentation Mode...');
-          try {
-            const fallbackVideo = new MockVideoEngine();
-            const fallbackAudio = new MockAudioEngine();
-            videoEngineRef.current = fallbackVideo;
-            audioEngineRef.current = fallbackAudio;
-
-            await fallbackVideo.initialize(
-              effectivePrompt,
-              (source: VideoStreamSource) => {
-                if (!isSubscribed) return;
-                setStreamSource(source);
-                setIsStreamReady(true);
-              },
-              researchData?.base_image
-            );
-
-            if (!isSubscribed) return;
-            fallbackAudio.startAmbient();
-            return;
-          } catch (fallbackErr) {
-            console.error('[ACTIVE SIMULATION] Fallback failed:', fallbackErr);
-          }
-        }
-
-        const msg = errStr.includes('429')
-          ? 'Quota Cooldown (Wait 5s) — Reactor Rate Limit'
-          : errStr.includes('402') || errStr.includes('credits_depleted')
-          ? 'Reactor Credits Depleted — Add Credits to Resume Live GPU Stream'
-          : 'Connection Failed — Reactor Stream Offline';
-        setErrorMessage(msg);
-      }
-    })();
-
-    return () => {
-      isSubscribed = false;
-      console.log('[ACTIVE SIMULATION] Unmounting component: executing hard GPU session teardown...');
-      if (videoEngineRef.current) {
-        videoEngineRef.current.disconnect();
-        videoEngineRef.current = null;
-      }
-      if (audioEngineRef.current) {
-        audioEngineRef.current.stopAll();
-        audioEngineRef.current = null;
-      }
-    };
-  }, [effectivePrompt, isLiveMode]);
-
-  // Credit Optimization: Pause remote GPU diffusion while modals are open or tab is hidden
-  useEffect(() => {
-    const shouldPause = isConsoleOpen || showDebrief || (typeof document !== 'undefined' && document.hidden);
-    if (shouldPause) {
-      videoEngineRef.current?.pause?.();
-    } else {
-      videoEngineRef.current?.resume?.();
-    }
-  }, [isConsoleOpen, showDebrief]);
-
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) {
-        videoEngineRef.current?.pause?.();
-      } else if (!isConsoleOpen && !showDebrief) {
-        videoEngineRef.current?.resume?.();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isConsoleOpen, showDebrief]);
-
-  // Extract HUD insights or default
   const hudInsights = researchData?.hud_insights || [
     'Spatial Vector: 4.8m/s Flow',
     'Acoustic Clearance: 18dB Damped',
@@ -503,51 +344,46 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
   return (
     <div className="relative w-full h-full min-h-screen bg-black overflow-hidden select-none font-mono">
-      
       {/* 1. Loading Screen */}
-      {!isStreamReady && !errorMessage && <LoadingScreen prompt={currentPrompt} />}
+      {!isStreamReady && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Crystal-Clear Full-Screen Video Stream */}
-      <video
-        ref={videoRef}
-        autoPlay
-        loop
-        muted
-        playsInline
-        onCanPlay={(e) => {
-          console.log('🎥 VIDEO CANPLAY EVENT FIRED');
-          e.currentTarget.play().catch(() => {});
-        }}
-        onLoadedData={(e) => {
-          console.log('🎥 VIDEO LOADEDDATA EVENT FIRED');
-          e.currentTarget.play().catch(() => {});
-        }}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 [transform:translateZ(0)] ${
-          isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      />
+      {/* 2. Interactive 2D Spatial Viewport Canvas Container */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-950 flex items-center justify-center cursor-grab active:cursor-grabbing"
+      >
+        <img
+          ref={imageRef}
+          src={activeImage}
+          alt="Spatial Simulation Viewport"
+          className="w-full h-full object-cover select-none pointer-events-none transition-[opacity] duration-700 [transform-origin:center_center] [will-change:transform]"
+          style={{
+            opacity: isStreamReady ? 1 : 0,
+          }}
+        />
+      </div>
 
-      {/* 3. Subtle Clean Edge Vignette */}
-      {isStreamReady && !errorMessage && (
+      {/* 3. Subtle Clean Edge Vignette & Cyber Grid Overlay */}
+      {isStreamReady && (
         <div
           className="absolute inset-0 pointer-events-none z-10"
           style={{
-            background: 'radial-gradient(ellipse at center, transparent 75%, rgba(0,0,0,0.45) 100%)',
+            background: 'radial-gradient(ellipse at center, transparent 70%, rgba(0,0,0,0.65) 100%)',
           }}
         />
       )}
 
       {/* 4. Holographic AR Scan Reticle on Connection */}
-      {isStreamReady && !errorMessage && showScanReticle && (
+      {isStreamReady && showScanReticle && (
         <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center transition-opacity duration-1000">
-          <div className="relative w-32 h-32 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
+          <div className="relative w-36 h-36 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
             <div
               className="absolute inset-2 border border-dashed border-cyan-400/40 rounded-full animate-spin"
               style={{ animationDuration: '6s' }}
             />
             <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_15px_#4FD8E8]" />
-            <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/80 px-2 py-0.5 border border-cyan-500/40 rounded">
-              AR SCAN LOCKED
+            <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/90 px-2.5 py-0.5 border border-cyan-500/40 rounded shadow-lg">
+              2D SPATIAL MATRIX LOCKED
             </div>
           </div>
         </div>
@@ -558,67 +394,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         <div className="absolute inset-0 z-50 bg-white pointer-events-none opacity-90 transition-opacity duration-200" />
       )}
 
-      {/* 6. Error Modal with 1-Click Presentation Fallback */}
-      {errorMessage && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-6">
-          <div className="max-w-md w-full rounded-2xl border border-rose-900/80 bg-zinc-950/95 p-6 text-center space-y-6 shadow-[0_0_50px_rgba(225,29,72,0.25)]">
-            <div className="w-12 h-12 rounded-full bg-rose-950/80 border border-rose-600/50 flex items-center justify-center mx-auto text-rose-400">
-              <AlertTriangle className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-wide text-rose-300 uppercase">
-                {errorMessage.includes('Capacity') || errorMessage.includes('Cooldown')
-                  ? 'Reactor GPU Cluster at Peak Capacity'
-                  : errorMessage}
-              </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                {errorMessage.includes('Capacity') || errorMessage.includes('Cooldown')
-                  ? "Reactor's LingBot servers are currently handling peak traffic with no free GPU instances. You can launch the Offline Interactive Presentation Mode for a seamless live demo with zero lag."
-                  : 'Unable to connect to remote neural stream.'}
-              </p>
-            </div>
-            
-            <div className="space-y-2.5">
-              <button
-                onClick={async () => {
-                  setErrorMessage(null);
-                  try {
-                    const fallbackVideo = new MockVideoEngine();
-                    const fallbackAudio = new MockAudioEngine();
-                    videoEngineRef.current = fallbackVideo;
-                    audioEngineRef.current = fallbackAudio;
-                    await fallbackVideo.initialize(
-                      effectivePrompt,
-                      (source: VideoStreamSource) => {
-                        setStreamSource(source);
-                        setIsStreamReady(true);
-                      },
-                      researchData?.base_image
-                    );
-                    fallbackAudio.startAmbient();
-                  } catch (err) {
-                    console.error('[ACTIVE SIMULATION] Manual fallback error:', err);
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs uppercase font-bold tracking-wider transition-all active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.4)]"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Launch Offline Interactive Mode</span>
-              </button>
-
-              <button
-                onClick={onExit}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs uppercase font-semibold transition-all active:scale-95"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>Return to Studio</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Mission Debrief Modal on Exit */}
+      {/* 6. Mission Debrief Modal on Exit */}
       {showDebrief && (
         <MissionDebriefModal
           stats={{
@@ -627,129 +403,119 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             distanceKm: distanceKm,
             anomaliesScanned: 2,
             decisionsMade: 1,
-            neuralStability: 99.4,
+            neuralStability: 99.8,
           }}
           onReturnToBase={onExit}
           onRestart={() => setShowDebrief(false)}
         />
       )}
 
-      {/* 8. ANIME CYBERPUNK HUD & TELEMETRY SIDEBAR */}
-      {isStreamReady && !errorMessage && !showDebrief && (
-        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 sm:p-8">
+      {/* 7. LIVE HUD OVERLAY & COCKPIT CONTROLS */}
+      {isStreamReady && (
+        <div className="absolute inset-0 z-30 pointer-events-none p-5 sm:p-7 flex flex-col justify-between">
           
           {/* TOP BAR */}
-          <div className="flex items-center justify-between w-full">
-            {/* Top-Left: Exit Button & Status */}
+          <header className="flex items-start justify-between w-full">
+            {/* Top-Left: Live Feed Status Pill */}
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowDebrief(true)}
-                className="pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 text-zinc-300 text-xs font-mono uppercase tracking-wider backdrop-blur-md hover:bg-zinc-800 hover:text-white transition-all active:scale-95 shadow-lg"
-              >
-                <X className="w-4 h-4 text-zinc-400" />
-                <span>Exit</span>
-                <kbd className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400 border border-zinc-700">
-                  ESC
-                </kbd>
-              </button>
-
-              <div className="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 backdrop-blur-md text-xs font-mono text-zinc-300 shadow-lg">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{isLiveMode ? 'LIVE WEBRTC' : 'MOCK ENGINE'}</span>
-              </div>
-            </div>
-
-            {/* Top-Right: Timer, Snap, Clip & Audio */}
-            <div className="flex items-center gap-2.5">
-              {/* Session Countdown Timer */}
-              <div
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border backdrop-blur-md text-xs font-mono tracking-wider ${
-                  sessionTimeLeft <= 30
-                    ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse'
-                    : 'bg-zinc-950/70 border-zinc-800 text-cyan-300'
-                }`}
-                title="Exploration Session Countdown"
-              >
-                <Clock className={`w-3.5 h-3.5 ${sessionTimeLeft <= 30 ? 'text-rose-400 animate-spin' : 'text-cyan-400'}`} />
-                <span>
-                  {Math.floor(sessionTimeLeft / 60)}:
-                  {sessionTimeLeft % 60 < 10 ? '0' : ''}
-                  {sessionTimeLeft % 60}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-cyan-500/30 backdrop-blur-md text-xs shadow-2xl">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                </span>
+                <span className="text-zinc-200 font-semibold tracking-wider text-[11px]">
+                  INTERACTIVE 2D CANVAS
+                </span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                  0 CREDITS (FREE)
                 </span>
               </div>
 
-              {/* Snapshot Button */}
+              {/* Session Countdown Pill */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-xs text-zinc-400 shadow-2xl">
+                <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-mono text-zinc-200 font-medium">
+                  {formatTime(sessionTimeLeft)}
+                </span>
+              </div>
+            </div>
+
+            {/* Top-Right: Actions Toolbar */}
+            <div className="flex items-center gap-2 pointer-events-auto">
+              {/* Snapshot Button [F] */}
               <button
                 onClick={handleCaptureSnapshot}
-                className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 text-zinc-300 text-xs backdrop-blur-md hover:border-cyan-500 hover:text-white transition-all active:scale-95 shadow-lg"
-                title="Capture Snapshot (F)"
+                className="p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-zinc-300 hover:text-cyan-400 hover:border-cyan-500/40 backdrop-blur-md transition-all active:scale-95 shadow-xl group"
+                title="Capture High-Res Snapshot [F]"
               >
-                <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden md:inline">SNAP</span>
-                <kbd className="text-[10px] bg-zinc-800 px-1 py-0.5 rounded text-zinc-400 border border-zinc-700">F</kbd>
+                <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
 
-              {/* Clip Recorder Button */}
+              {/* Video Clip Recording Button [R] */}
               <button
-                onClick={toggleRecording}
-                className={`pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl border backdrop-blur-md text-xs transition-all active:scale-95 shadow-lg ${
+                onClick={handleToggleRecord}
+                className={`p-2.5 rounded-xl border backdrop-blur-md transition-all active:scale-95 shadow-xl group ${
                   isRecording
-                    ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.3)] animate-pulse'
-                    : 'bg-zinc-950/70 border-zinc-800 text-zinc-300 hover:border-rose-500'
+                    ? 'bg-rose-950/80 border-rose-500 text-rose-400 animate-pulse'
+                    : 'bg-zinc-950/80 border-zinc-800 text-zinc-300 hover:text-rose-400 hover:border-rose-500/40'
                 }`}
-                title="Record Video Clip (R)"
+                title={isRecording ? `Recording... (${recordSeconds}s) [R]` : 'Record Clip [R]'}
               >
-                <Video className={`w-3.5 h-3.5 ${isRecording ? 'text-rose-400' : 'text-zinc-400'}`} />
-                <span className="hidden md:inline">{isRecording ? `REC ${recordSeconds}s` : 'CLIP'}</span>
-                <kbd className="text-[10px] bg-zinc-800 px-1 py-0.5 rounded text-zinc-400 border border-zinc-700">R</kbd>
+                <Video className="w-4 h-4" />
               </button>
 
-              {/* Audio Toggle */}
+              {/* Audio Mute Toggle */}
               <button
                 onClick={handleToggleAudio}
-                className={`pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl border backdrop-blur-md text-xs transition-all active:scale-95 shadow-lg ${
-                  isAudioMuted
-                    ? 'bg-zinc-950/70 border-zinc-800 text-zinc-500 hover:text-zinc-300'
-                    : 'bg-zinc-950/70 border-zinc-700 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                }`}
+                className="p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-zinc-300 hover:text-cyan-400 hover:border-cyan-500/40 backdrop-blur-md transition-all active:scale-95 shadow-xl"
+                title={isAudioMuted ? 'Unmute Audio' : 'Mute Audio'}
               >
-                {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />}
+                {isAudioMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
+              </button>
+
+              {/* Mission Debrief / Exit Button [ESC] */}
+              <button
+                onClick={() => setShowDebrief(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-700/80 hover:border-rose-500/50 hover:bg-rose-950/40 text-zinc-300 hover:text-rose-400 text-xs font-semibold backdrop-blur-md transition-all active:scale-95 shadow-xl"
+                title="Complete Mission & Debrief [ESC]"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>EXIT [ESC]</span>
               </button>
             </div>
-          </div>
+          </header>
 
-          {/* RIGHT FROSTED-GLASS TELEMETRY SIDEBAR */}
-          <aside className="pointer-events-auto absolute right-4 top-24 w-80 backdrop-blur-xl bg-zinc-950/80 border-l border-cyan-500/30 p-5 text-white shadow-[0_0_20px_rgba(6,182,212,0.15)] rounded-2xl space-y-4 font-mono z-30">
-            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-widest">
-                  SPATIAL TELEMETRY
-                </span>
+          {/* RIGHT SIDEBAR: REAL-TIME HUD TELEMETRY INSIGHTS */}
+          <aside className="self-end w-72 p-4 rounded-2xl bg-zinc-950/75 border border-zinc-800/80 backdrop-blur-md space-y-3 pointer-events-none shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider">
+                <Layers className="w-3.5 h-3.5" />
+                <span>SPATIAL TELEMETRY</span>
               </div>
-              <span className="text-[10px] text-zinc-400 border border-zinc-800 px-2 py-0.5 rounded bg-zinc-900/80">
-                LLM SYNC
+              <span className="text-[10px] text-zinc-400 font-mono">
+                {distanceKm.toFixed(2)} KM
               </span>
             </div>
 
-            <div className="space-y-2.5">
-              <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
-                Live HUD Insights
+            <div className="space-y-2">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
+                Environmental Metrics
               </span>
               {hudInsights.map((insight, idx) => (
                 <div
                   key={idx}
-                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-zinc-900/60 border border-cyan-500/10 hover:border-cyan-500/30 transition-all text-xs"
+                  className="flex items-start gap-2 p-2 rounded-xl bg-zinc-900/60 border border-cyan-500/10 text-xs"
                 >
-                  <span className="text-cyan-400 font-bold mt-0.5">▶</span>
-                  <span className="text-zinc-200 leading-relaxed font-light">{insight}</span>
+                  <span className="text-cyan-400 font-bold">▶</span>
+                  <span className="text-zinc-300 leading-tight font-light">{insight}</span>
                 </div>
               ))}
             </div>
 
             <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500">
-              <span>ART STYLE: CEL-SHADED ANIME</span>
-              <span className="text-cyan-400">60 FPS</span>
+              <span>VIEWPORT KINEMATICS</span>
+              <span className="text-cyan-400 font-mono">60 FPS</span>
             </div>
           </aside>
 
@@ -768,7 +534,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400">
-                  Update environment directive live without disconnecting the stream:
+                  Update environment directive live — Powered by Pollinations.ai (0 Credits):
                 </p>
 
                 <form onSubmit={handleConsoleSubmit} className="flex gap-2">
@@ -777,16 +543,22 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                     type="text"
                     value={consoleInput}
                     onChange={(e) => setConsoleInput(e.target.value)}
-                    placeholder="e.g. Add glowing anime neon billboards and wet reflections..."
+                    placeholder="e.g. Add glowing anime neon billboards and rainy reflections..."
                     className="flex-1 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400"
                     autoFocus
+                    disabled={isUpdatingDirective}
                   />
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold uppercase tracking-wider transition-all active:scale-95"
+                    disabled={isUpdatingDirective || !consoleInput.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-zinc-950 text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Transmit</span>
+                    {isUpdatingDirective ? (
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isUpdatingDirective ? 'Morphing...' : 'Transmit'}</span>
                   </button>
                 </form>
               </div>
@@ -796,21 +568,21 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           {/* BOTTOM BAR */}
           <div className="flex items-end justify-between w-full">
             {/* Bottom-Left: Sector Description */}
-            <div className="max-w-lg p-3.5 rounded-2xl bg-zinc-950/75 border border-zinc-800/80 backdrop-blur-md text-xs space-y-1 shadow-2xl">
+            <div className="max-w-lg p-3.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 backdrop-blur-md text-xs space-y-1 shadow-2xl">
               <div className="flex items-center gap-1.5 text-cyan-400 text-[10px] uppercase tracking-wider font-semibold">
                 <Sparkles className="w-3 h-3" />
-                <span>Active Spatial Simulation</span>
+                <span>Active 2D Spatial Environment</span>
               </div>
               <p className="text-zinc-200 text-xs font-light tracking-wide line-clamp-2">
                 {currentPrompt}
               </p>
             </div>
 
-            {/* Bottom-Right: Controls Bar */}
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-950/75 border border-zinc-800/80 backdrop-blur-md text-xs shadow-2xl">
+            {/* Bottom-Right: Interactive Navigation Bar */}
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 backdrop-blur-md text-xs shadow-2xl">
               <button
                 onClick={() => setIsConsoleOpen(true)}
-                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/50 border border-cyan-500/40 text-cyan-300 text-[11px] hover:bg-cyan-900/60 transition-all active:scale-95"
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/50 border border-cyan-500/40 text-cyan-300 text-[11px] hover:bg-cyan-900/60 transition-all active:scale-95 cursor-pointer"
               >
                 <Terminal className="w-3.5 h-3.5" />
                 <span>DIRECTIVE [TAB]</span>
@@ -820,21 +592,18 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
               <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
                 <div className="flex items-center gap-1">
-                  <Compass className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>MOVE:</span>
-                  <span className={`font-bold uppercase ${activeMovement !== 'idle' ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {activeMovement}
-                  </span>
+                  <ZoomIn className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>W/S:</span>
+                  <span className="font-bold text-zinc-200">ZOOM</span>
                 </div>
                 <span className="text-zinc-700">|</span>
                 <div className="flex items-center gap-1">
-                  <span>LOOK:</span>
-                  <span className={`font-bold uppercase ${activeLook !== 'idle' ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {activeLook}
-                  </span>
+                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>A/D:</span>
+                  <span className="font-bold text-zinc-200">PAN</span>
                 </div>
                 <span className="text-zinc-700 hidden md:inline">|</span>
-                <span className="hidden md:inline text-cyan-400 font-medium">WASD + MOUSE</span>
+                <span className="hidden md:inline text-emerald-400 font-medium">100% FREE MODE</span>
               </div>
             </div>
           </div>
@@ -844,4 +613,5 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     </div>
   );
 };
+
 export default ActiveSimulation;
