@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 
-import { conductSpatialResearch } from './services/researchAgent';
+import { conductSpatialResearch } from './services/researchAgent.js';
 
 // Load environment variables from .env
 dotenv.config();
