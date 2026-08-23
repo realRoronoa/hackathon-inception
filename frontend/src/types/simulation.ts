@@ -24,4 +24,5 @@ export interface SpatialResearchPayload {
   reactor_prompt: string;
   hud_insights: string[];
   deep_research: string;
+  base_image?: string;
 }

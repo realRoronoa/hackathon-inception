@@ -72,6 +72,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [blueprintPreview, setBlueprintPreview] = useState<SpatialResearchPayload | null>(null);
 
   // Load saved snapshots from localStorage
   useEffect(() => {
@@ -125,7 +126,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
       if (res.ok) {
         const payload: SpatialResearchPayload = await res.json();
         setIsSynthesizing(false);
-        onStartSimulation(payload);
+        setBlueprintPreview(payload);
         return;
       }
     } catch (err) {
@@ -141,12 +142,20 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
         'Pedestrian Vector: 4.8m/s Flow',
       ],
       deep_research: `Comprehensive spatial intelligence compiled for ${trimmed}. The architectural blueprint maximizes throughput, high-contrast visibility, and immersive anime cyberpunk aesthetics.`,
+      base_image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1024&q=80',
     };
 
     setTimeout(() => {
       setIsSynthesizing(false);
-      onStartSimulation(fallbackPayload);
+      setBlueprintPreview(fallbackPayload);
     }, 800);
+  };
+
+  const handleConfirmLaunch = () => {
+    if (blueprintPreview) {
+      onStartSimulation(blueprintPreview);
+      setBlueprintPreview(null);
+    }
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -202,6 +211,82 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
               <p className="text-xs font-mono text-cyan-300/80 leading-relaxed">
                 Agent synthesizing market research and compiling spatial blueprint...
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Concept Blueprint Preview Modal (Image-to-World Initialization) */}
+      {blueprintPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-2xl p-4 sm:p-6 select-none animate-fade-in">
+          <div className="max-w-2xl w-full rounded-3xl border border-cyan-500/50 bg-zinc-950/95 p-6 sm:p-8 space-y-6 shadow-[0_0_60px_rgba(6,182,212,0.3)] font-mono">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-xs font-bold text-cyan-300 uppercase tracking-widest">
+                  CONCEPT BLUEPRINT GENERATED
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-500 border border-zinc-800 px-2 py-0.5 rounded">
+                IMAGEN 3 • ANIME CYBERPUNK SEED
+              </span>
+            </div>
+
+            {/* Base Image Container with Cinematic Glow */}
+            <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.2)] bg-zinc-900 group">
+              {blueprintPreview.base_image && (
+                <img
+                  src={blueprintPreview.base_image}
+                  alt="Spatial Base Concept"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+              )}
+              
+              {/* Corner Bracket Overlays */}
+              <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
+              <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
+              <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
+              <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+
+              <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/70 border border-cyan-500/30 rounded text-[10px] text-cyan-300 font-mono">
+                1024 × 576 SEED
+              </div>
+            </div>
+
+            {/* Telemetry Preview Pills */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {blueprintPreview.hud_insights.map((insight, idx) => (
+                <div
+                  key={idx}
+                  className="p-2.5 rounded-xl bg-zinc-900/80 border border-cyan-500/20 text-[11px] text-zinc-300 flex items-start gap-1.5"
+                >
+                  <span className="text-cyan-400 font-bold">▶</span>
+                  <span className="leading-tight">{insight}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setBlueprintPreview(null)}
+                className="px-5 py-3.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-all cursor-pointer"
+              >
+                Back / Edit
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmLaunch}
+                className="flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-[0_0_30px_rgba(79,216,232,0.4)]"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>INITIALIZE SIMULATION</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>

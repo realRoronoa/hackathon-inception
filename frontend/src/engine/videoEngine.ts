@@ -10,9 +10,13 @@ export type VideoStreamSource = MediaStream | string;
  */
 export interface IVideoEngine {
   /**
-   * Initializes the video engine with an environment prompt and callback for when stream is ready
+   * Initializes the video engine with an environment prompt, ready callback, and optional base image seed
    */
-  initialize(prompt: string, onStreamReady: (source: VideoStreamSource) => void): Promise<void> | void;
+  initialize(
+    prompt: string,
+    onStreamReady: (source: VideoStreamSource) => void,
+    baseImage?: string
+  ): Promise<void> | void;
 
   /**
    * Sends movement command to the stream

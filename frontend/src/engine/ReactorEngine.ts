@@ -130,7 +130,8 @@ export class ReactorEngine implements IVideoEngine {
 
   public async initialize(
     prompt: string,
-    onStreamReady: (source: VideoStreamSource) => void
+    onStreamReady: (source: VideoStreamSource) => void,
+    baseImage?: string
   ): Promise<void> {
     const apiKey = import.meta.env.VITE_REACTOR_API_KEY || '';
 
@@ -191,17 +192,32 @@ export class ReactorEngine implements IVideoEngine {
       console.log('[REACTOR ENGINE] WebRTC peer connection established, waiting for ready status...');
 
       await waitForReady;
-      console.log('[REACTOR ENGINE] Connection ready. Staging seed image and prompt...');
+      console.log('[REACTOR ENGINE] Connection ready. Staging base concept image and prompt...');
 
-      // 5. Upload seed image to anchor LingBot neural generation
+      // 5. Upload base concept image to anchor LingBot neural generation (Image-to-World)
       try {
-        const seedBlob = await createSeedImageBlob(prompt);
-        const file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
+        let file: File;
+        if (baseImage && baseImage.startsWith('data:image/svg+xml')) {
+          const seedBlob = await createSeedImageBlob(prompt);
+          file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
+        } else if (baseImage && baseImage.startsWith('data:')) {
+          const res = await fetch(baseImage);
+          const blob = await res.blob();
+          file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
+        } else if (baseImage) {
+          const res = await fetch(baseImage);
+          const blob = await res.blob();
+          file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
+        } else {
+          const seedBlob = await createSeedImageBlob(prompt);
+          file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
+        }
+
         const imageRef = await this.client.uploadFile(file);
-        console.log('[REACTOR ENGINE] Seed image uploaded:', imageRef);
+        console.log('[REACTOR ENGINE] Base concept image uploaded to Reactor:', imageRef);
 
         await this.client.sendCommand('set_image', { image: imageRef });
-        console.log('[REACTOR ENGINE] Sent set_image command.');
+        console.log('[REACTOR ENGINE] Sent set_image with base concept anchor.');
       } catch (uploadErr) {
         console.warn('[REACTOR ENGINE] Seed image upload warning:', uploadErr);
       }

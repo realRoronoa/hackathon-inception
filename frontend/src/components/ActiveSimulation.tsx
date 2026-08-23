@@ -400,11 +400,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     (async () => {
       try {
-        await videoEngine.initialize(effectivePrompt, (source: VideoStreamSource) => {
-          if (!isSubscribed) return;
-          setStreamSource(source);
-          setIsStreamReady(true);
-        });
+        await videoEngine.initialize(
+          effectivePrompt,
+          (source: VideoStreamSource) => {
+            if (!isSubscribed) return;
+            setStreamSource(source);
+            setIsStreamReady(true);
+          },
+          researchData?.base_image
+        );
 
         if (!isSubscribed) return;
         audioEngine.startAmbient();
