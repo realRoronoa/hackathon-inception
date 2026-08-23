@@ -476,6 +476,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         loop
         muted
         playsInline
+        onCanPlay={(e) => {
+          console.log('🎥 VIDEO CANPLAY EVENT FIRED');
+          e.currentTarget.play().catch(() => {});
+        }}
+        onLoadedData={(e) => {
+          console.log('🎥 VIDEO LOADEDDATA EVENT FIRED');
+          e.currentTarget.play().catch(() => {});
+        }}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 [transform:translateZ(0)] ${
           isStreamReady && !errorMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
