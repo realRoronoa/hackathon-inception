@@ -529,10 +529,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           />
         )}
 
-        {/* Full-Screen Continuous Interactive Video Viewport */}
+        {/* Full-Screen Interactive WebRTC Video Viewport */}
         <video
           ref={videoRef}
-          src={typeof streamSource === 'string' ? streamSource : 'https://media.w3.org/2010/05/sintel/trailer.mp4'}
           autoPlay
           loop
           muted
@@ -541,7 +540,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             e.currentTarget.play().catch(() => {});
           }}
           className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700 ${
-            streamSource ? 'opacity-100' : 'opacity-40 mix-blend-screen'
+            streamSource ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         />
       </div>
