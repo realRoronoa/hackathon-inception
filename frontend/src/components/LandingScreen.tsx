@@ -125,30 +125,22 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
 
       if (res.ok) {
         const payload: SpatialResearchPayload = await res.json();
+        if (!payload.base_image || payload.base_image.startsWith('data:image/svg')) {
+          throw new Error('Imagen 3 failed to generate a photorealistic base image.');
+        }
         setIsSynthesizing(false);
         setBlueprintPreview(payload);
         return;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Backend failed to synthesize spatial blueprint.');
       }
-    } catch (err) {
-      console.warn('[STUDIO] LLM Research API unreachable, using client fallback:', err);
-    }
-
-    // Fallback payload with exact anime cyberpunk art style injection
-    const fallbackPayload: SpatialResearchPayload = {
-      reactor_prompt: `${trimmed}, high-end anime cyberpunk art style, bold outlines, flat cel-shaded color blocks, neon lighting in high-contrast pairs, dark urban environment, kinetic atmospheric anime aesthetic.`,
-      hud_insights: [
-        'Spatial Density: 91.4% Optimal',
-        'Acoustic Clearance: 18dB Damped',
-        'Pedestrian Vector: 4.8m/s Flow',
-      ],
-      deep_research: `Comprehensive spatial intelligence compiled for ${trimmed}. The architectural blueprint maximizes throughput, high-contrast visibility, and immersive anime cyberpunk aesthetics.`,
-      base_image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1024&q=80',
-    };
-
-    setTimeout(() => {
+    } catch (err: any) {
+      console.error('[STUDIO] Image generation aborted:', err);
       setIsSynthesizing(false);
-      setBlueprintPreview(fallbackPayload);
-    }, 800);
+      setBlueprintPreview(null);
+      alert(`⚠️ SIMULATION ABORTED (0 Credits Used):\n\n${err.message || 'Image generation failed.'}\n\nThe Reactor WebRTC GPU session was NOT started to protect your API credits.`);
+    }
   };
 
   const handleConfirmLaunch = () => {

@@ -176,6 +176,11 @@ export class ReactorEngine implements IVideoEngine {
 
     console.log(`[REACTOR ENGINE] Exchanging API key and initializing Reactor client with model: "reactor/lingbot"...`);
 
+    if (!baseImage || baseImage.startsWith('data:image/svg')) {
+      console.warn('[REACTOR ENGINE] Aborting GPU session: Valid base concept image is required.');
+      throw new Error('Simulation Aborted: No valid Imagen 3 photo generated. GPU session canceled to protect Reactor credits.');
+    }
+
     try {
       // 1. Exchange API Key for scoped JWT token
       const jwtToken = await resolveReactorJwt(apiKey);

@@ -114,51 +114,54 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
 }
 
 /**
- * TASK 2 & 3: Vision Client - Imagen 3 Base Image Generation (Error Isolated)
+ * TASK 2 & 3: Vision Client - Imagen 3 Base Image Generation (Strict Error Gatekeeper)
  */
 async function generateBaseImage(prompt: string): Promise<string> {
   const imageApiKey = getImageApiKey();
   console.log('🎨 IMAGEN 3 GENERATING BASE IMAGE...');
 
-  if (imageApiKey) {
-    try {
-      console.log('[VISION CLIENT] Calling Imagen 3 (imagen-3.0-generate-001) for seed concept...');
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${imageApiKey}`,
-        {
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: '16:9',
-            outputOptions: {
-              mimeType: 'image/jpeg',
-            },
-          },
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000,
-        }
-      );
-
-      const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
-      if (b64) {
-        const baseImage = `data:image/jpeg;base64,${b64}`;
-        console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES');
-        return baseImage;
-      }
-    } catch (visionErr: any) {
-      console.warn(
-        '[VISION CLIENT] Vision API rate limit or error encountered, isolating failure and falling back to procedural seed:',
-        visionErr?.message
-      );
-    }
+  if (!imageApiKey) {
+    throw new Error('GEMINI_IMAGE_API_KEY is not configured in backend/.env. Aborting to protect Reactor GPU credits.');
   }
 
-  // Error isolated fallback: Never crash the endpoint
-  const fallbackSeed = generateProceduralAnimeCyberpunkSeed(prompt);
-  console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES (PROCEDURAL NEURAL SEED)');
-  return fallbackSeed;
+  try {
+    console.log('[VISION CLIENT] Calling Imagen 3 (imagen-3.0-generate-001) for seed concept...');
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${imageApiKey}`,
+      {
+        instances: [{ prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '16:9',
+          outputOptions: {
+            mimeType: 'image/jpeg',
+          },
+        },
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000,
+      }
+    );
+
+    const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
+    if (b64) {
+      const baseImage = `data:image/jpeg;base64,${b64}`;
+      console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES');
+      return baseImage;
+    }
+
+    throw new Error('Imagen 3 returned empty prediction payload.');
+  } catch (visionErr: any) {
+    const errorDetails =
+      visionErr.response?.data?.error?.message ||
+      visionErr.response?.data?.message ||
+      visionErr.message ||
+      'Unknown Imagen error';
+
+    console.error('❌ IMAGEN 3 GENERATION FAILED (Aborting execution to protect Reactor credits):', errorDetails);
+    throw new Error(`Imagen 3 Generation Failed: "${errorDetails}". Aborting session to prevent wasting Reactor GPU credits.`);
+  }
 }
 
 /**
