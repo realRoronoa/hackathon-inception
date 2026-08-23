@@ -153,20 +153,62 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
 }
 
 /**
- * TASK 2 & 3: Vision Client - Local Preset Bypass & Imagen 3 Base Image Generation
+ * Zero-Cost On-The-Fly Blueprint Generator via Pollinations.ai
+ */
+async function fetchPollinationsImage(prompt: string): Promise<string | null> {
+  try {
+    const isProduct =
+      prompt.toLowerCase().includes('earbud') ||
+      prompt.toLowerCase().includes('product') ||
+      prompt.toLowerCase().includes('watch') ||
+      prompt.toLowerCase().includes('device');
+
+    const suffix = isProduct
+      ? ', professional product photography studio shot, soft neutral background, 8k commercial catalog style, 16:9 aspect ratio'
+      : ', professional architectural blueprint, clean lines, photorealistic 3D render style, 16:9 aspect ratio';
+
+    const enhancedPrompt = `${prompt.trim()}${suffix}`;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=1280&height=720&nologo=true&seed=42`;
+
+    console.log(`🎨 [POLLINATIONS.AI] Synthesizing 0-cost custom blueprint: "${enhancedPrompt.slice(0, 60)}..."`);
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 12000,
+    });
+
+    if (response.data && response.data.length > 1000) {
+      const b64 = Buffer.from(response.data).toString('base64');
+      const mime = response.headers['content-type'] || 'image/jpeg';
+      console.log(`✅ [POLLINATIONS.AI] Blueprint generated successfully (${(response.data.length / 1024).toFixed(1)} KB)`);
+      return `data:${mime};base64,${b64}`;
+    }
+  } catch (err: any) {
+    console.warn('[POLLINATIONS.AI] Generation notice, falling back:', err?.message);
+  }
+  return null;
+}
+
+/**
+ * TASK 2 & 3: Vision Client - Local Preset Bypass, Pollinations.ai & Imagen 3 Pipeline
  */
 async function generateBaseImage(prompt: string): Promise<string> {
-  // 1. Instant 0-Cost Local Preset Check
+  // 1. Instant 0-Cost Local Preset Check (0s latency for core demo scenarios)
   const localPreset = getLocalPresetImage(prompt);
   if (localPreset) {
     console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES (LOCAL PRESET ASSET)');
     return localPreset;
   }
 
-  // 2. Custom Prompt Flow: Try Gemini Imagen 3
-  const imageApiKey = getImageApiKey();
-  console.log('🎨 IMAGEN 3 GENERATING BASE IMAGE FOR CUSTOM PROMPT...');
+  // 2. Custom Prompt Flow: Pollinations.ai (0-Cost, High-Definition AI Generation)
+  console.log('🎨 GENERATING CUSTOM BLUEPRINT VIA POLLINATIONS.AI...');
+  const pollinationsImage = await fetchPollinationsImage(prompt);
+  if (pollinationsImage) {
+    console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES (POLLINATIONS.AI)');
+    return pollinationsImage;
+  }
 
+  // 3. Fallback: Gemini Imagen 3 (if key configured)
+  const imageApiKey = getImageApiKey();
   if (imageApiKey) {
     try {
       console.log('[VISION CLIENT] Calling Imagen 3 (imagen-3.0-generate-001) for seed concept...');
@@ -195,14 +237,11 @@ async function generateBaseImage(prompt: string): Promise<string> {
         return baseImage;
       }
     } catch (visionErr: any) {
-      console.warn(
-        '[VISION CLIENT] Imagen 3 network error, safely using procedural seed fallback for custom prompt:',
-        visionErr?.message
-      );
+      console.warn('[VISION CLIENT] Imagen 3 error, falling back:', visionErr?.message);
     }
   }
 
-  // 3. Robust procedural fallback for custom prompts
+  // 4. Robust procedural fallback for offline operation
   console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES (PROCEDURAL NEURAL SEED)');
   return generateProceduralAnimeCyberpunkSeed(prompt);
 }
