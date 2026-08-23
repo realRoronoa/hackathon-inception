@@ -12,47 +12,29 @@ export const ANIME_CYBERPUNK_SUFFIX =
   ', high-end anime cyberpunk art style, bold outlines, flat cel-shaded color blocks, neon lighting in high-contrast pairs, dark urban environment, kinetic atmospheric anime aesthetic.';
 
 /**
- * Generates an Anime Cyberpunk Base Initialization Image using Gemini Imagen 3
- * with a high-fidelity SVG/Canvas neural seed fallback.
+ * Service Isolation / Dual Client Sharding Helpers
  */
-async function generateBaseImage(prompt: string, apiKey?: string): Promise<string> {
-  if (apiKey && apiKey !== 'your_gemini_api_key_here') {
-    try {
-      console.log('[IMAGEN] Attempting Imagen 3 generation for prompt:', prompt.slice(0, 60));
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
-        {
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: '16:9',
-            outputOptions: {
-              mimeType: 'image/jpeg',
-            },
-          },
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000,
-        }
-      );
-
-      const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
-      if (b64) {
-        console.log('[IMAGEN] Successfully generated base image via Imagen 3 API');
-        return `data:image/jpeg;base64,${b64}`;
-      }
-    } catch (err: any) {
-      console.warn('[IMAGEN] Imagen 3 API unavailable, falling back to neural seed synthesizer:', err?.message);
-    }
+function getTextClient(): GoogleGenerativeAI | null {
+  const apiKey = process.env.GEMINI_TEXT_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your_gemini_text_api_key_here') {
+    return null;
   }
+  return new GoogleGenerativeAI(apiKey);
+}
 
-  // High-fidelity Anime Cyberpunk SVG Neural Seed Fallback
-  return generateProceduralAnimeCyberpunkSeed(prompt);
+function getImageApiKey(): string | null {
+  const apiKey =
+    process.env.GEMINI_IMAGE_API_KEY ||
+    process.env.GEMINI_TEXT_API_KEY ||
+    process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your_gemini_image_api_key_here') {
+    return null;
+  }
+  return apiKey;
 }
 
 /**
- * Procedural Anime Cyberpunk Concept Seed Generator (16:9 SVG Data URI)
+ * Procedural Anime Cyberpunk Concept Seed Generator (16:9 SVG Data URI Fallback)
  */
 function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
   const norm = prompt.toLowerCase();
@@ -91,11 +73,6 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
       <stop offset="0%" stop-color="#04060A" />
       <stop offset="100%" stop-color="#0D1119" />
     </linearGradient>
-    <linearGradient id="neonBeam" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="${primaryColor}" stop-opacity="0.8" />
-      <stop offset="50%" stop-color="${secondaryColor}" stop-opacity="0.6" />
-      <stop offset="100%" stop-color="${accentColor}" stop-opacity="0.8" />
-    </linearGradient>
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="8" result="blur" />
       <feMerge>
@@ -105,39 +82,29 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
     </filter>
   </defs>
 
-  <!-- Sky & Dark Urban Environment -->
   <rect width="1024" height="576" fill="url(#skyGrad)" />
-
-  <!-- Cel-Shaded Anime City Silhouettes -->
   <path d="M 0 320 L 80 320 L 80 180 L 160 180 L 160 320 L 260 320 L 260 120 L 380 120 L 380 320 L 460 320 L 460 220 L 580 220 L 580 320 L 720 320 L 720 140 L 840 140 L 840 320 L 940 320 L 940 200 L 1024 200 L 1024 576 L 0 576 Z" fill="#070A12" stroke="#101827" stroke-width="3" />
 
-  <!-- Neon Glowing Billboards & High-Contrast Anime Lighting -->
   <rect x="275" y="140" width="90" height="40" fill="${primaryColor}" opacity="0.85" filter="url(#glow)" rx="4" />
   <text x="320" y="165" fill="#04262B" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">INCEPTION</text>
 
   <rect x="735" y="160" width="90" height="50" fill="${secondaryColor}" opacity="0.85" filter="url(#glow)" rx="4" />
   <text x="780" y="190" fill="#04262B" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">SPATIAL</text>
 
-  <!-- Reflective Ground Plane & Perspective Grid -->
   <polygon points="0,320 1024,320 1024,576 0,576" fill="url(#groundGrad)" />
-
-  <!-- Perspective Vanishing Lines (Cel-Shaded Outlines) -->
   <line x1="512" y1="320" x2="0" y2="576" stroke="${primaryColor}" stroke-width="2" stroke-opacity="0.6" filter="url(#glow)" />
   <line x1="512" y1="320" x2="256" y2="576" stroke="${primaryColor}" stroke-width="1.5" stroke-opacity="0.4" />
   <line x1="512" y1="320" x2="512" y2="576" stroke="${secondaryColor}" stroke-width="2" stroke-opacity="0.7" filter="url(#glow)" />
   <line x1="512" y1="320" x2="768" y2="576" stroke="${accentColor}" stroke-width="1.5" stroke-opacity="0.4" />
   <line x1="512" y1="320" x2="1024" y2="576" stroke="${accentColor}" stroke-width="2" stroke-opacity="0.6" filter="url(#glow)" />
 
-  <!-- Horizontal Grid Lines -->
   <line x1="120" y1="360" x2="904" y2="360" stroke="#1F2937" stroke-width="1.5" />
   <line x1="60" y1="410" x2="964" y2="410" stroke="${primaryColor}" stroke-width="1.5" stroke-opacity="0.3" />
   <line x1="0" y1="480" x2="1024" y2="480" stroke="${secondaryColor}" stroke-width="2" stroke-opacity="0.4" />
 
-  <!-- Center Holographic Target Anchor -->
   <circle cx="512" cy="320" r="16" fill="none" stroke="${primaryColor}" stroke-width="3" filter="url(#glow)" />
   <circle cx="512" cy="320" r="4" fill="${primaryColor}" />
 
-  <!-- Top Cyberpunk HUD Header -->
   <rect x="24" y="24" width="360" height="36" fill="#090C11" stroke="${primaryColor}" stroke-width="1.5" rx="6" />
   <text x="40" y="47" fill="${primaryColor}" font-family="monospace" font-size="11" font-weight="bold" letter-spacing="2">INITIALIZATION SEED // ${themeTitle}</text>
 </svg>
@@ -147,26 +114,74 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
 }
 
 /**
- * Gemini LLM Spatial Intelligence Adapter
+ * TASK 2 & 3: Vision Client - Imagen 3 Base Image Generation (Error Isolated)
  */
-async function fetchGemini(query: string): Promise<SpatialResearchResult> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+async function generateBaseImage(prompt: string): Promise<string> {
+  const imageApiKey = getImageApiKey();
 
-  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    console.warn('[RESEARCH AGENT] GEMINI_API_KEY not configured. Using deterministic synthesis fallback.');
-    return generateFallbackResearch(query);
+  if (imageApiKey) {
+    try {
+      console.log('[VISION CLIENT] Calling Imagen 3 (imagen-3.0-generate-001) for seed concept...');
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${imageApiKey}`,
+        {
+          instances: [{ prompt }],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: '16:9',
+            outputOptions: {
+              mimeType: 'image/jpeg',
+            },
+          },
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 15000,
+        }
+      );
+
+      const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
+      if (b64) {
+        console.log('[VISION CLIENT] Imagen 3 image generation successful');
+        return `data:image/jpeg;base64,${b64}`;
+      }
+    } catch (visionErr: any) {
+      console.warn(
+        '[VISION CLIENT] Vision API rate limit or error encountered, isolating failure and falling back to procedural seed:',
+        visionErr?.message
+      );
+    }
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.7,
-    },
-  });
+  // Error isolated fallback: Never crash the endpoint
+  return generateProceduralAnimeCyberpunkSeed(prompt);
+}
 
-  const systemPrompt = `You are an Elite Spatial Intelligence Architect.
+/**
+ * TASK 2 & 3: Text Client - JSON Synthesis (Error Isolated)
+ */
+async function fetchGeminiText(query: string): Promise<{
+  reactor_prompt: string;
+  hud_insights: string[];
+  deep_research: string;
+}> {
+  const textClient = getTextClient();
+
+  if (!textClient) {
+    console.warn('[TEXT CLIENT] GEMINI_TEXT_API_KEY not configured. Using deterministic text synthesis fallback.');
+    return generateFallbackText(query);
+  }
+
+  try {
+    const model = textClient.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.7,
+      },
+    });
+
+    const systemPrompt = `You are an Elite Spatial Intelligence Architect.
 The user is testing a real-world product launch, architecture, or spatial exploration scenario: "${query}".
 
 Analyze the physical space, demographic flow, and structural layout.
@@ -177,42 +192,37 @@ Return a STRICT JSON object with these EXACT keys:
 
 Output valid JSON only.`;
 
-  const result = await model.generateContent(systemPrompt);
-  const text = result.response.text();
-  const parsed = JSON.parse(text);
+    const result = await model.generateContent(systemPrompt);
+    const text = result.response.text();
+    const parsed = JSON.parse(text);
 
-  const rawPrompt = (parsed.reactor_prompt || query).trim();
-  const styledPrompt = `${rawPrompt}${ANIME_CYBERPUNK_SUFFIX}`;
-
-  // Generate Base Initialization Image
-  const baseImage = await generateBaseImage(styledPrompt, apiKey);
-
-  return {
-    reactor_prompt: rawPrompt,
-    hud_insights: Array.isArray(parsed.hud_insights) && parsed.hud_insights.length >= 3
-      ? parsed.hud_insights.slice(0, 3)
-      : [
-          `Spatial Vector: ${query.slice(0, 24)}...`,
-          'Neural Sync: 99.4% Active',
-          'Telemetry Stream: Nominal',
-        ],
-    deep_research: parsed.deep_research || `Comprehensive spatial analysis compiled for ${query}.`,
-    base_image: baseImage,
-  };
+    return {
+      reactor_prompt: (parsed.reactor_prompt || query).trim(),
+      hud_insights:
+        Array.isArray(parsed.hud_insights) && parsed.hud_insights.length >= 3
+          ? parsed.hud_insights.slice(0, 3)
+          : [
+              `Spatial Vector: ${query.slice(0, 24)}...`,
+              'Neural Sync: 99.4% Active',
+              'Telemetry Stream: Nominal',
+            ],
+      deep_research:
+        parsed.deep_research || `Comprehensive spatial analysis compiled for ${query}.`,
+    };
+  } catch (textErr: any) {
+    console.warn('[TEXT CLIENT] Text generation error encountered, falling back to deterministic text:', textErr?.message);
+    return generateFallbackText(query);
+  }
 }
 
 /**
- * Anthropic Claude Adapter (Stub for final presentation swap)
+ * Deterministic text fallback
  */
-async function fetchClaude(query: string): Promise<SpatialResearchResult> {
-  console.log('[RESEARCH AGENT] Claude Adapter selected for query:', query);
-  return fetchGemini(query);
-}
-
-/**
- * Fallback spatial research generator (zero API credits required)
- */
-function generateFallbackResearch(query: string): SpatialResearchResult {
+function generateFallbackText(query: string): {
+  reactor_prompt: string;
+  hud_insights: string[];
+  deep_research: string;
+} {
   const norm = query.toLowerCase();
 
   let spatialSubject = 'Urban architectural environment';
@@ -242,39 +252,34 @@ function generateFallbackResearch(query: string): SpatialResearchResult {
     insight3 = `Neural Alignment: 99.8%`;
   }
 
-  const baseImage = generateProceduralAnimeCyberpunkSeed(query);
-
   return {
     reactor_prompt: spatialSubject,
     hud_insights: [insight1, insight2, insight3],
     deep_research: `Spatial intelligence analysis indicates optimal environmental ergonomics for "${query}". The blueprint emphasizes unobstructed pedestrian navigation, high-contrast focal points, and cohesive architectural flow. Recommended zoning allows seamless operational access while preserving immersive spatial aesthetics.`,
-    base_image: baseImage,
   };
 }
 
 /**
- * Master Spatial Research Dispatcher (Adapter Pattern)
+ * Master Spatial Research Dispatcher (Sharded & Error-Isolated)
  */
 export async function conductSpatialResearch(query: string): Promise<SpatialResearchResult> {
   const provider = (process.env.LLM_PROVIDER || 'gemini').toLowerCase();
 
-  let research: SpatialResearchResult;
+  // 1. Text Synthesis (Text Client)
+  const textPayload = await fetchGeminiText(query);
 
-  try {
-    if (provider === 'claude') {
-      research = await fetchClaude(query);
-    } else {
-      research = await fetchGemini(query);
-    }
-  } catch (error) {
-    console.error('[RESEARCH AGENT] LLM generation error, utilizing deterministic fallback:', error);
-    research = generateFallbackResearch(query);
-  }
+  const rawPrompt = textPayload.reactor_prompt;
+  const styledPrompt = rawPrompt.includes('anime cyberpunk')
+    ? rawPrompt
+    : `${rawPrompt}${ANIME_CYBERPUNK_SUFFIX}`;
 
-  // Forceful Anime Cyberpunk Injection
-  if (!research.reactor_prompt.includes('anime cyberpunk')) {
-    research.reactor_prompt = `${research.reactor_prompt}${ANIME_CYBERPUNK_SUFFIX}`;
-  }
+  // 2. Vision Generation (Vision Client with independent Error Isolation)
+  const baseImage = await generateBaseImage(styledPrompt);
 
-  return research;
+  return {
+    reactor_prompt: styledPrompt,
+    hud_insights: textPayload.hud_insights,
+    deep_research: textPayload.deep_research,
+    base_image: baseImage,
+  };
 }
