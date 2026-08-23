@@ -1,20 +1,19 @@
 import type { MovementDirection, LookDirection } from '../types/simulation';
 import type { IVideoEngine, VideoStreamSource } from './videoEngine';
 
-// High-definition public cinematic environment feeds for different world prompts
 const PRESET_VIDEO_SOURCES: Record<string, string> = {
-  kitchen: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  smart: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  ev: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  showroom: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  flagship: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  orbital: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  manor: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-  cyberpunk: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+  kitchen: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+  smart: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+  ev: 'https://vjs.zencdn.net/v/oceans.mp4',
+  showroom: 'https://vjs.zencdn.net/v/oceans.mp4',
+  flagship: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+  orbital: 'https://vjs.zencdn.net/v/oceans.mp4',
+  manor: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+  cyberpunk: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+  earbuds: 'https://vjs.zencdn.net/v/oceans.mp4',
 };
 
-const DEFAULT_VIDEO_URL =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4';
+const DEFAULT_VIDEO_URL = 'https://media.w3.org/2010/05/sintel/trailer.mp4';
 
 export class MockVideoEngine implements IVideoEngine {
   private initTimeoutId: ReturnType<typeof setTimeout> | null = null;

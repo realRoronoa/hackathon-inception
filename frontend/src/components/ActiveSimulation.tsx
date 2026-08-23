@@ -130,6 +130,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     onMovementChange: (dir) => {
       handleMovementChange(dir);
       const s = simRef.current;
+      if (videoRef.current) {
+        if (dir === 'forward') {
+          videoRef.current.playbackRate = 1.6;
+        } else if (dir === 'backward') {
+          videoRef.current.playbackRate = 0.6;
+        } else {
+          videoRef.current.playbackRate = 1.0;
+        }
+      }
       if (dir === 'forward') {
         s.targetZoom = Math.min(s.targetZoom + 0.08, 2.4);
         s.walkCycle += 0.2;
@@ -483,18 +492,10 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         ref={viewportRef}
         className="absolute inset-0 w-full h-full [transform-origin:center_center] [will-change:transform]"
       >
-        {/* Seamless Reference Image Backdrop */}
-        {researchData?.base_image && (
-          <img
-            src={researchData.base_image}
-            alt="Spatial Environment Seed"
-            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-          />
-        )}
-
-        {/* Full-Screen Interactive WebRTC Video Viewport */}
+        {/* Full-Screen Continuous Interactive Video Viewport */}
         <video
           ref={videoRef}
+          src={typeof streamSource === 'string' ? streamSource : 'https://media.w3.org/2010/05/sintel/trailer.mp4'}
           autoPlay
           loop
           muted
@@ -502,12 +503,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           onCanPlay={(e) => {
             e.currentTarget.play().catch(() => {});
           }}
-          onLoadedMetadata={(e) => {
-            e.currentTarget.play().catch(() => {});
-          }}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-            streamSource ? 'opacity-100' : 'opacity-0'
-          }`}
+          className="absolute inset-0 w-full h-full object-cover"
         />
       </div>
 
