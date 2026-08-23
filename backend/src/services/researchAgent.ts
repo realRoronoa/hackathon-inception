@@ -24,7 +24,9 @@ function getLocalPresetImage(query: string): string | null {
   const norm = query.toLowerCase();
   let filename = '';
 
-  if (norm.includes('kitchen') || norm.includes('bommanahalli') || norm.includes('smart-kitchen')) {
+  if (norm.includes('earbud') || norm.includes('earbuds') || norm.includes('product') || norm.includes('wireless') || norm.includes('audio') || norm.includes('minimalist')) {
+    filename = 'product-blueprint.jpg';
+  } else if (norm.includes('kitchen') || norm.includes('bommanahalli') || norm.includes('smart-kitchen')) {
     filename = 'kitchen-blueprint.jpg';
   } else if (norm.includes('ev') || norm.includes('indiranagar') || norm.includes('showroom') || norm.includes('ev-showroom') || norm.includes('car')) {
     filename = 'ev-blueprint.jpg';
@@ -278,7 +280,17 @@ function generateFallbackText(query: string): {
   let insight2 = 'Acoustic Absorption: 22dB';
   let insight3 = 'Lighting: 4500K Ambient';
 
-  if (norm.includes('kitchen') || norm.includes('bommanahalli')) {
+  if (norm.includes('earbud') || norm.includes('earbuds') || norm.includes('product') || norm.includes('wireless') || norm.includes('audio') || norm.includes('minimalist')) {
+    spatialSubject = 'A clean product photography studio shot of sleek minimalist wireless earbuds in a charging case, soft neutral background, professional commercial lighting, sharp focus, high-end e-commerce product catalog style.';
+    insight1 = 'Battery Life: 36h Total';
+    insight2 = 'Ergonomic Fit: IPX4 Rated';
+    insight3 = 'Bluetooth: v5.3 Low Energy';
+    return {
+      reactor_prompt: spatialSubject,
+      hud_insights: [insight1, insight2, insight3],
+      deep_research: 'Consumer market analysis indicates strong demand for lightweight, sweat-resistant audio gear with extended battery life and seamless multi-device pairing. Spatial acoustic isolation and ergonomic ear-canal profiling optimize comfort for prolonged daily commutes and active workouts.',
+    };
+  } else if (norm.includes('kitchen') || norm.includes('bommanahalli')) {
     spatialSubject = 'Operational smart kitchen hub with polished steel counters and digital displays';
     insight1 = 'IoT Sensor Telemetry: 98.2%';
     insight2 = 'Thermal Index: 24°C Balanced';
@@ -317,7 +329,16 @@ export async function conductSpatialResearch(query: string): Promise<SpatialRese
   const textPayload = await fetchGeminiText(query);
 
   const rawPrompt = textPayload.reactor_prompt;
-  const styledPrompt = rawPrompt.includes('anime cyberpunk')
+  const isProduct =
+    query.toLowerCase().includes('earbud') ||
+    query.toLowerCase().includes('product') ||
+    query.toLowerCase().includes('wireless') ||
+    rawPrompt.includes('product photography') ||
+    rawPrompt.includes('catalog style');
+
+  const styledPrompt = isProduct
+    ? rawPrompt
+    : rawPrompt.includes('anime cyberpunk')
     ? rawPrompt
     : `${rawPrompt}${ANIME_CYBERPUNK_SUFFIX}`;
 

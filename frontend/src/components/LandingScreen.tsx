@@ -30,6 +30,16 @@ interface SectorCard {
 
 const SECTORS: SectorCard[] = [
   {
+    id: 'wireless-earbuds',
+    icon: '🎧',
+    tag: 'CONSUMER AUDIO • HARDWARE',
+    title: 'Minimalist Wireless Earbuds',
+    description:
+      'Clean professional product photography studio shot of sleek matte black wireless earbuds with an open charging case on a soft neutral studio backdrop.',
+    prompt:
+      'A clean product photography studio shot of sleek minimalist wireless earbuds in a charging case, soft neutral background, professional commercial lighting, sharp focus, high-end e-commerce product catalog style.',
+  },
+  {
     id: 'smart-kitchen',
     icon: '◒',
     tag: 'BOMMANAHALLI • IOT',

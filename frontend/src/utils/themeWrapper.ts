@@ -4,6 +4,9 @@
 export const MASTER_STYLE_SUFFIX =
   'cinematic exploration aesthetic, high-end sci-fi atmosphere, dramatic volumetric lighting, hyper-detailed textures, cohesive color grading, photorealistic 8k';
 
+export const COMMERCIAL_PRODUCT_SUFFIX =
+  'clean studio lighting, razor-sharp product details, neutral backdrop, photorealistic 8k commercial catalog style';
+
 /**
  * Wraps user and preset prompts with master style modifiers
  */
@@ -12,6 +15,15 @@ export function applyMasterTheme(userPrompt: string): string {
 
   if (!trimmed) {
     return `An immersive atmospheric world, ${MASTER_STYLE_SUFFIX}`;
+  }
+
+  if (
+    trimmed.toLowerCase().includes('product photography') ||
+    trimmed.toLowerCase().includes('catalog style') ||
+    trimmed.toLowerCase().includes('earbuds') ||
+    trimmed.toLowerCase().includes('e-commerce')
+  ) {
+    return trimmed.includes('photorealistic') ? trimmed : `${trimmed}, ${COMMERCIAL_PRODUCT_SUFFIX}`;
   }
 
   if (trimmed.toLowerCase().includes('cinematic exploration aesthetic')) {
