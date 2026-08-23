@@ -558,7 +558,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
         <div className="absolute inset-0 z-50 bg-white pointer-events-none opacity-90 transition-opacity duration-200" />
       )}
 
-      {/* 6. Error Modal */}
+      {/* 6. Error Modal with 1-Click Presentation Fallback */}
       {errorMessage && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-6">
           <div className="max-w-md w-full rounded-2xl border border-rose-900/80 bg-zinc-950/95 p-6 text-center space-y-6 shadow-[0_0_50px_rgba(225,29,72,0.25)]">
@@ -567,21 +567,53 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             </div>
             <div className="space-y-2">
               <h3 className="text-lg font-semibold tracking-wide text-rose-300 uppercase">
-                {errorMessage}
+                {errorMessage.includes('Capacity') || errorMessage.includes('Cooldown')
+                  ? 'Reactor GPU Cluster at Peak Capacity'
+                  : errorMessage}
               </h3>
-              <p className="text-xs text-zinc-400">
-                {errorMessage.includes('Cooldown')
-                  ? 'Reactor rate limit reached. Please wait 5 seconds before starting a new session.'
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {errorMessage.includes('Capacity') || errorMessage.includes('Cooldown')
+                  ? "Reactor's LingBot servers are currently handling peak traffic with no free GPU instances. You can launch the Offline Interactive Presentation Mode for a seamless live demo with zero lag."
                   : 'Unable to connect to remote neural stream.'}
               </p>
             </div>
-            <button
-              onClick={onExit}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs uppercase font-semibold transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Return to Base</span>
-            </button>
+            
+            <div className="space-y-2.5">
+              <button
+                onClick={async () => {
+                  setErrorMessage(null);
+                  try {
+                    const fallbackVideo = new MockVideoEngine();
+                    const fallbackAudio = new MockAudioEngine();
+                    videoEngineRef.current = fallbackVideo;
+                    audioEngineRef.current = fallbackAudio;
+                    await fallbackVideo.initialize(
+                      effectivePrompt,
+                      (source: VideoStreamSource) => {
+                        setStreamSource(source);
+                        setIsStreamReady(true);
+                      },
+                      researchData?.base_image
+                    );
+                    fallbackAudio.startAmbient();
+                  } catch (err) {
+                    console.error('[ACTIVE SIMULATION] Manual fallback error:', err);
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs uppercase font-bold tracking-wider transition-all active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.4)]"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Launch Offline Interactive Mode</span>
+              </button>
+
+              <button
+                onClick={onExit}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs uppercase font-semibold transition-all active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Return to Studio</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
