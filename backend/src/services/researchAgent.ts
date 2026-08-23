@@ -21,16 +21,32 @@ export const ANIME_CYBERPUNK_SUFFIX =
  * Local Pre-Rendered Blueprint Bypass (0-Cost, Instant Loading for Core Presets)
  */
 function getLocalPresetImage(query: string): string | null {
-  const norm = query.toLowerCase();
+  const norm = query.toLowerCase().trim();
   let filename = '';
 
-  if (norm.includes('earbud') || norm.includes('earbuds') || norm.includes('product') || norm.includes('wireless') || norm.includes('audio') || norm.includes('minimalist')) {
+  if (
+    norm === 'minimalist wireless earbuds' ||
+    norm === 'wireless-earbuds' ||
+    norm.startsWith('a clean product photography studio shot of sleek minimalist wireless earbuds')
+  ) {
     filename = 'product-blueprint.jpg';
-  } else if (norm.includes('kitchen') || norm.includes('bommanahalli') || norm.includes('smart-kitchen')) {
+  } else if (
+    norm === 'smart kitchen hub' ||
+    norm === 'smart-kitchen' ||
+    norm.startsWith('a high-end operational smart kitchen showroom')
+  ) {
     filename = 'kitchen-blueprint.jpg';
-  } else if (norm.includes('ev') || norm.includes('indiranagar') || norm.includes('showroom') || norm.includes('ev-showroom') || norm.includes('car')) {
+  } else if (
+    norm === 'urban ev showroom' ||
+    norm === 'ev-showroom' ||
+    norm.startsWith('a minimalist futuristic electric vehicle showroom')
+  ) {
     filename = 'ev-blueprint.jpg';
-  } else if (norm.includes('flagship') || norm.includes('opera') || norm.includes('ai') || norm.includes('lounge') || norm.includes('ai-flagship')) {
+  } else if (
+    norm === 'ai connected flagship' ||
+    norm === 'ai-flagship' ||
+    norm.startsWith('a multi-zone interactive consumer electronics')
+  ) {
     filename = 'flagship-blueprint.jpg';
   }
 
@@ -312,49 +328,64 @@ function generateFallbackText(query: string): {
   hud_insights: string[];
   deep_research: string;
 } {
-  const norm = query.toLowerCase();
+  const norm = query.toLowerCase().trim();
 
-  let spatialSubject = 'Urban architectural environment';
-  let insight1 = 'Spatial Flow: 4.6 m/s';
-  let insight2 = 'Acoustic Absorption: 22dB';
-  let insight3 = 'Lighting: 4500K Ambient';
-
-  if (norm.includes('earbud') || norm.includes('earbuds') || norm.includes('product') || norm.includes('wireless') || norm.includes('audio') || norm.includes('minimalist')) {
-    spatialSubject = 'A clean product photography studio shot of sleek minimalist wireless earbuds in a charging case, soft neutral background, professional commercial lighting, sharp focus, high-end e-commerce product catalog style.';
-    insight1 = 'Battery Life: 36h Total';
-    insight2 = 'Ergonomic Fit: IPX4 Rated';
-    insight3 = 'Bluetooth: v5.3 Low Energy';
+  if (
+    norm === 'minimalist wireless earbuds' ||
+    norm === 'wireless-earbuds' ||
+    norm.startsWith('a clean product photography studio shot of sleek minimalist wireless earbuds')
+  ) {
     return {
-      reactor_prompt: spatialSubject,
-      hud_insights: [insight1, insight2, insight3],
-      deep_research: 'Consumer market analysis indicates strong demand for lightweight, sweat-resistant audio gear with extended battery life and seamless multi-device pairing. Spatial acoustic isolation and ergonomic ear-canal profiling optimize comfort for prolonged daily commutes and active workouts.',
+      reactor_prompt:
+        'A clean product photography studio shot of sleek minimalist wireless earbuds in a charging case, soft neutral background, professional commercial lighting, sharp focus, high-end e-commerce product catalog style.',
+      hud_insights: ['Battery Life: 36h Total', 'Ergonomic Fit: IPX4 Rated', 'Bluetooth: v5.3 Low Energy'],
+      deep_research:
+        'Consumer market analysis indicates strong demand for lightweight, sweat-resistant audio gear with extended battery life and seamless multi-device pairing. Spatial acoustic isolation and ergonomic ear-canal profiling optimize comfort for prolonged daily commutes and active workouts.',
     };
-  } else if (norm.includes('kitchen') || norm.includes('bommanahalli')) {
-    spatialSubject = 'Operational smart kitchen hub with polished steel counters and digital displays';
-    insight1 = 'IoT Sensor Telemetry: 98.2%';
-    insight2 = 'Thermal Index: 24°C Balanced';
-    insight3 = 'Ergonomic Reach: 0.85m Radius';
-  } else if (norm.includes('ev') || norm.includes('indiranagar') || norm.includes('car')) {
-    spatialSubject = 'Minimalist futuristic electric vehicle showroom with glossy epoxy reflection floors';
-    insight1 = 'Customer Footfall: 142 p/hr';
-    insight2 = 'Glare Dispersion: Polarized 94%';
-    insight3 = 'Power Grid: 350kW DC Rapid';
-  } else if (norm.includes('flagship') || norm.includes('opera') || norm.includes('ai')) {
-    spatialSubject = 'Multi-zone consumer technology lounge with interactive curved ambient screens';
-    insight1 = 'Display Luminescence: 1200 nits';
-    insight2 = 'Spatial Resonance: 48Hz Sub';
-    insight3 = 'Engagement Zone: 12.4m Depth';
-  } else {
-    spatialSubject = `${query} with volumetric depth and reflective materials`;
-    insight1 = `Sector Density: 88.4%`;
-    insight2 = `Optical Clearance: Optimal`;
-    insight3 = `Neural Alignment: 99.8%`;
+  } else if (
+    norm === 'smart kitchen hub' ||
+    norm === 'smart-kitchen' ||
+    norm.startsWith('a high-end operational smart kitchen showroom')
+  ) {
+    return {
+      reactor_prompt: 'Operational smart kitchen hub with polished steel counters and digital displays',
+      hud_insights: ['IoT Sensor Telemetry: 98.2%', 'Thermal Index: 24°C Balanced', 'Ergonomic Reach: 0.85m Radius'],
+      deep_research:
+        'Spatial intelligence analysis indicates optimal culinary ergonomics for commercial smart kitchen environments.',
+    };
+  } else if (
+    norm === 'urban ev showroom' ||
+    norm === 'ev-showroom' ||
+    norm.startsWith('a minimalist futuristic electric vehicle showroom')
+  ) {
+    return {
+      reactor_prompt: 'Minimalist futuristic electric vehicle showroom with glossy epoxy reflection floors',
+      hud_insights: ['Customer Footfall: 142 p/hr', 'Glare Dispersion: Polarized 94%', 'Power Grid: 350kW DC Rapid'],
+      deep_research:
+        'Automotive showroom spatial blueprint optimizing high-traffic vehicle exploration and glare-free vehicle presentation.',
+    };
+  } else if (
+    norm === 'ai connected flagship' ||
+    norm === 'ai-flagship' ||
+    norm.startsWith('a multi-zone interactive consumer electronics')
+  ) {
+    return {
+      reactor_prompt: 'Multi-zone consumer technology lounge with interactive curved ambient screens',
+      hud_insights: ['Display Luminescence: 1200 nits', 'Spatial Resonance: 48Hz Sub', 'Engagement Zone: 12.4m Depth'],
+      deep_research:
+        'Consumer electronics experiential hub designed for seamless multi-user interactivity and ambient spatial acoustics.',
+    };
   }
 
+  // Dynamic Telemetry for ANY Custom Prompt
   return {
-    reactor_prompt: spatialSubject,
-    hud_insights: [insight1, insight2, insight3],
-    deep_research: `Spatial intelligence analysis indicates optimal environmental ergonomics for "${query}". The blueprint emphasizes unobstructed pedestrian navigation, high-contrast focal points, and cohesive architectural flow. Recommended zoning allows seamless operational access while preserving immersive spatial aesthetics.`,
+    reactor_prompt: query,
+    hud_insights: [
+      `Sector Density: 88.4% Optimal`,
+      `Optical Clearance: 99.8% Calibrated`,
+      `Spatial Flow: 4.8m/s Rate`,
+    ],
+    deep_research: `Spatial intelligence analysis compiled for "${query}". High-contrast visual wayfinding, optimized architectural clearance, and seamless interactive navigation vectors established.`,
   };
 }
 
