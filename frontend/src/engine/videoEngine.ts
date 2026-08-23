@@ -34,6 +34,16 @@ export interface IVideoEngine {
   setPrompt?(prompt: string): Promise<void> | void;
 
   /**
+   * Pauses remote GPU diffusion during modal open or tab hidden states (0 Credits)
+   */
+  pause?(): Promise<void> | void;
+
+  /**
+   * Resumes remote GPU diffusion
+   */
+  resume?(): Promise<void> | void;
+
+  /**
    * Disconnects the active video stream session
    */
   disconnect(): void;

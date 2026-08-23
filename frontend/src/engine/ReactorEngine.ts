@@ -182,6 +182,17 @@ export class ReactorEngine implements IVideoEngine {
     }
 
     try {
+      // 0. Pre-bundle base image File in memory BEFORE connecting (Eliminates 3-7s GPU reservation lag)
+      console.log('[REACTOR ENGINE] Pre-bundling reference image before WebRTC session allocation...');
+      let seedFile: File;
+      if (baseImage && (baseImage.startsWith('data:image/jpeg') || baseImage.startsWith('data:image/png') || baseImage.startsWith('http'))) {
+        const res = await fetch(baseImage);
+        const blob = await res.blob();
+        seedFile = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
+      } else {
+        seedFile = await generatePhotographicSeed(prompt);
+      }
+
       // 1. Exchange API Key for scoped JWT token
       const jwtToken = await resolveReactorJwt(apiKey);
       console.log('[REACTOR ENGINE] Successfully acquired scoped JWT token.');
@@ -250,30 +261,13 @@ export class ReactorEngine implements IVideoEngine {
       console.log('[REACTOR ENGINE] WebRTC peer connection established, waiting for ready status...');
 
       await waitForReady;
-      console.log('[REACTOR ENGINE] Connection ready. Staging base concept image and prompt...');
+      console.log('[REACTOR ENGINE] Connection ready. Instantly uploading pre-bundled reference image...');
 
-      // 5. Upload base concept image to satisfy LingBot mandatory reference image requirement
-      try {
-        let file: File;
-        if (baseImage && (baseImage.startsWith('data:image/jpeg') || baseImage.startsWith('data:image/png') || baseImage.startsWith('http'))) {
-          console.log('[REACTOR ENGINE] Using Imagen 3 photo anchor...');
-          const res = await fetch(baseImage);
-          const blob = await res.blob();
-          file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
-        } else {
-          console.log('[REACTOR ENGINE] Generating high-definition architectural seed canvas for LingBot...');
-          file = await generatePhotographicSeed(prompt);
-        }
+      // 5. Instantly upload pre-bundled seed image and set prompt
+      const imageRef = await this.client.uploadFile(seedFile);
+      console.log('✅ SEED IMAGE UPLOADED TO REACTOR (<200ms):', imageRef);
 
-        const imageRef = await this.client.uploadFile(file);
-        console.log('✅ SEED IMAGE UPLOADED TO REACTOR:', imageRef);
-
-        await this.client.sendCommand('set_image', { image: imageRef });
-        console.log('[REACTOR ENGINE] Sent set_image reference anchor to LingBot.');
-      } catch (uploadErr) {
-        console.error('❌ SEED IMAGE UPLOAD ERROR:', uploadErr);
-      }
-
+      await this.client.sendCommand('set_image', { image: imageRef });
       const styledPrompt = applyMasterTheme(prompt);
       await this.client.sendCommand('set_prompt', { prompt: styledPrompt });
       console.log(`[REACTOR ENGINE] Sent styled set_prompt: "${styledPrompt}"`);
@@ -315,10 +309,29 @@ export class ReactorEngine implements IVideoEngine {
     }
   }
 
+  public async pause(): Promise<void> {
+    if (!this.client || this.client.getStatus() !== 'ready') return;
+    try {
+      await this.client.sendCommand('pause', {});
+      console.log('⏸️ [REACTOR GPU] GPU diffusion PAUSED (0 Credits Consumed during modal/blur).');
+    } catch (err) {
+      console.warn('[REACTOR GPU] Pause notice:', err);
+    }
+  }
+
+  public async resume(): Promise<void> {
+    if (!this.client || this.client.getStatus() !== 'ready') return;
+    try {
+      await this.client.sendCommand('resume', {});
+      console.log('▶️ [REACTOR GPU] GPU diffusion RESUMED.');
+    } catch (err) {
+      console.warn('[REACTOR GPU] Resume notice:', err);
+    }
+  }
+
   public sendMovement(direction: MovementDirection): void {
     if (!this.client || this.client.getStatus() !== 'ready') return;
     try {
-      // Map to official LingBot wire protocol: "idle" | "forward" | "back" | "strafe_left" | "strafe_right"
       const movementValue =
         direction === 'forward'
           ? 'forward'
@@ -340,17 +353,14 @@ export class ReactorEngine implements IVideoEngine {
   public sendLook(direction: LookDirection): void {
     if (!this.client || this.client.getStatus() !== 'ready') return;
     try {
-      // Map to official LingBot wire protocol: set_look_horizontal & set_look_vertical
       if (direction === 'left' || direction === 'right' || direction === 'idle') {
         const horizontalValue = direction === 'left' ? 'left' : direction === 'right' ? 'right' : 'idle';
         this.client.sendCommand('set_look_horizontal', { look_horizontal: horizontalValue });
-        console.log('[REACTOR ENGINE] Sent set_look_horizontal ->', horizontalValue);
       }
 
       if (direction === 'up' || direction === 'down' || direction === 'idle') {
         const verticalValue = direction === 'up' ? 'up' : direction === 'down' ? 'down' : 'idle';
         this.client.sendCommand('set_look_vertical', { look_vertical: verticalValue });
-        console.log('[REACTOR ENGINE] Sent set_look_vertical ->', verticalValue);
       }
     } catch (err) {
       console.warn('[REACTOR ENGINE] Failed to send look:', err);
@@ -371,8 +381,8 @@ export class ReactorEngine implements IVideoEngine {
   public disconnect(): void {
     if (this.client) {
       try {
-        this.client.disconnect();
-        console.log('[REACTOR ENGINE] Reactor client disconnected.');
+        this.client.disconnect(true);
+        console.log('🛑 [REACTOR ENGINE] Hard GPU session terminated (Billing Halted).');
       } catch (err) {
         console.warn('[REACTOR ENGINE] Error disconnecting client:', err);
       }

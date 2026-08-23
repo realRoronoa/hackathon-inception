@@ -443,6 +443,28 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     };
   }, [effectivePrompt, isLiveMode]);
 
+  // Credit Optimization: Pause remote GPU diffusion while modals are open or tab is hidden
+  useEffect(() => {
+    const shouldPause = isConsoleOpen || showDebrief || (typeof document !== 'undefined' && document.hidden);
+    if (shouldPause) {
+      videoEngineRef.current?.pause?.();
+    } else {
+      videoEngineRef.current?.resume?.();
+    }
+  }, [isConsoleOpen, showDebrief]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        videoEngineRef.current?.pause?.();
+      } else if (!isConsoleOpen && !showDebrief) {
+        videoEngineRef.current?.resume?.();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isConsoleOpen, showDebrief]);
+
   // Extract HUD insights or default
   const hudInsights = researchData?.hud_insights || [
     'Spatial Vector: 4.8m/s Flow',
