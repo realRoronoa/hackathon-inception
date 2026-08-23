@@ -360,6 +360,8 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     const el = videoRef.current;
     if (!el || !streamSource) return;
 
+    console.log('🎥 ONTRACK FIRED. STREAM SOURCE:', streamSource);
+
     const attach = (reset = false) => {
       try {
         if (reset) {
@@ -386,7 +388,10 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
     if (streamSource instanceof MediaStream) {
       const tracks = streamSource.getTracks();
-      const onUnmute = () => attach(true);
+      const onUnmute = () => {
+        console.log('🎥 WEBRTC TRACK UNMUTED - RENDERING INCOMING VIDEO STREAM');
+        attach(true);
+      };
       for (const track of tracks) track.addEventListener('unmute', onUnmute);
       return () => {
         for (const track of tracks) track.removeEventListener('unmute', onUnmute);

@@ -118,6 +118,7 @@ function generateProceduralAnimeCyberpunkSeed(prompt: string): string {
  */
 async function generateBaseImage(prompt: string): Promise<string> {
   const imageApiKey = getImageApiKey();
+  console.log('🎨 IMAGEN 3 GENERATING BASE IMAGE...');
 
   if (imageApiKey) {
     try {
@@ -142,8 +143,9 @@ async function generateBaseImage(prompt: string): Promise<string> {
 
       const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
       if (b64) {
-        console.log('[VISION CLIENT] Imagen 3 image generation successful');
-        return `data:image/jpeg;base64,${b64}`;
+        const baseImage = `data:image/jpeg;base64,${b64}`;
+        console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES');
+        return baseImage;
       }
     } catch (visionErr: any) {
       console.warn(
@@ -154,7 +156,9 @@ async function generateBaseImage(prompt: string): Promise<string> {
   }
 
   // Error isolated fallback: Never crash the endpoint
-  return generateProceduralAnimeCyberpunkSeed(prompt);
+  const fallbackSeed = generateProceduralAnimeCyberpunkSeed(prompt);
+  console.log('✅ BASE IMAGE GENERATED SUCCESSFULLY: YES (PROCEDURAL NEURAL SEED)');
+  return fallbackSeed;
 }
 
 /**

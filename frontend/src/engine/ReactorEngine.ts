@@ -150,9 +150,9 @@ export class ReactorEngine implements IVideoEngine {
 
       // 3. Listen for incoming WebRTC video stream track
       this.client.on('trackReceived', (name: string, track: MediaStreamTrack, stream: MediaStream) => {
-        console.log(`[REACTOR ENGINE] WebRTC track received: "${name}", kind: "${track?.kind}"`, track);
+        console.log(`🎥 ONTRACK FIRED. NAME: "${name}", KIND: "${track?.kind}"`, track, stream);
         if (track?.kind === 'video' || name === 'main_video' || name === 'video' || name.includes('video')) {
-          console.log('[REACTOR ENGINE] Main video stream active.');
+          console.log('✅ MAIN VIDEO STREAM ACTIVE');
           this.isConnected = true;
 
           const mediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
@@ -196,7 +196,7 @@ export class ReactorEngine implements IVideoEngine {
 
       // 5. Upload base concept image to anchor LingBot neural generation (Image-to-World)
       try {
-        let file: File;
+        let file: File | null = null;
         if (baseImage && baseImage.startsWith('data:image/svg+xml')) {
           const seedBlob = await createSeedImageBlob(prompt);
           file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
@@ -208,18 +208,17 @@ export class ReactorEngine implements IVideoEngine {
           const res = await fetch(baseImage);
           const blob = await res.blob();
           file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
-        } else {
-          const seedBlob = await createSeedImageBlob(prompt);
-          file = new File([seedBlob], 'seed.jpg', { type: 'image/jpeg' });
         }
 
-        const imageRef = await this.client.uploadFile(file);
-        console.log('[REACTOR ENGINE] Base concept image uploaded to Reactor:', imageRef);
-
-        await this.client.sendCommand('set_image', { image: imageRef });
-        console.log('[REACTOR ENGINE] Sent set_image with base concept anchor.');
+        if (file) {
+          console.log('[REACTOR ENGINE] Uploading seed image to Reactor session...');
+          const imageRef = await this.client.uploadFile(file);
+          console.log('✅ BASE CONCEPT IMAGE UPLOADED TO REACTOR:', imageRef);
+          await this.client.sendCommand('set_image', { image: imageRef });
+          console.log('[REACTOR ENGINE] Sent set_image with base concept anchor.');
+        }
       } catch (uploadErr) {
-        console.warn('[REACTOR ENGINE] Seed image upload warning:', uploadErr);
+        console.error('❌ SEED IMAGE UPLOAD FAILED (Booting text-only simulation):', uploadErr);
       }
 
       const styledPrompt = applyMasterTheme(prompt);
