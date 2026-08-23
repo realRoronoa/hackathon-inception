@@ -51,6 +51,118 @@ async function resolveReactorJwt(apiKey: string): Promise<string> {
   }
 }
 
+/**
+ * Creates a high-definition 1024x576 photographic anchor canvas for LingBot neural diffusion
+ */
+async function generatePhotographicSeed(prompt: string): Promise<File> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  if (ctx) {
+    const norm = prompt.toLowerCase();
+    
+    // Background gradient: Deep moody cinematic room
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, 576);
+    bgGrad.addColorStop(0, '#0a0e17');
+    bgGrad.addColorStop(0.5, '#121a2d');
+    bgGrad.addColorStop(1, '#05070d');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1024, 576);
+
+    // Dynamic accent color
+    let primaryAccent = '#00f0ff';
+    let secondaryAccent = '#ff007f';
+    if (norm.includes('kitchen')) {
+      primaryAccent = '#38bdf8';
+      secondaryAccent = '#f59e0b';
+    } else if (norm.includes('ev') || norm.includes('showroom')) {
+      primaryAccent = '#60a5fa';
+      secondaryAccent = '#a855f7';
+    } else if (norm.includes('flagship') || norm.includes('lounge')) {
+      primaryAccent = '#c084fc';
+      secondaryAccent = '#06b6d4';
+    }
+
+    // Volumetric horizon glow
+    const glow = ctx.createRadialGradient(512, 280, 20, 512, 280, 450);
+    glow.addColorStop(0, primaryAccent);
+    glow.addColorStop(0.3, secondaryAccent);
+    glow.addColorStop(1, 'transparent');
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1024, 576);
+    ctx.globalAlpha = 1.0;
+
+    // Floor perspective grid
+    ctx.strokeStyle = primaryAccent;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.45;
+    const vanishY = 280;
+    for (let x = -200; x <= 1224; x += 80) {
+      ctx.beginPath();
+      ctx.moveTo(x, 576);
+      ctx.lineTo(512 + (x - 512) * 0.12, vanishY);
+      ctx.stroke();
+    }
+    for (let y = vanishY; y <= 576; y += (y - vanishY) * 0.28 + 12) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(1024, y);
+      ctx.stroke();
+    }
+
+    // Architectural Side Panels / Digital Displays
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = secondaryAccent;
+    ctx.lineWidth = 2;
+    // Left console
+    ctx.beginPath();
+    ctx.moveTo(0, 200);
+    ctx.lineTo(240, 240);
+    ctx.lineTo(240, 460);
+    ctx.lineTo(0, 520);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Right console
+    ctx.beginPath();
+    ctx.moveTo(1024, 200);
+    ctx.lineTo(784, 240);
+    ctx.lineTo(784, 460);
+    ctx.lineTo(1024, 520);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Central focal platform
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#090d16';
+    ctx.strokeStyle = primaryAccent;
+    ctx.beginPath();
+    ctx.ellipse(512, 430, 260, 65, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Neon Reticle in Center
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = primaryAccent;
+    ctx.beginPath();
+    ctx.arc(512, 280, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+  }
+
+  return new Promise<File>((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(new File([blob || new Blob([])], 'seed.jpg', { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.95);
+  });
+}
+
 export class ReactorEngine implements IVideoEngine {
   private client: Reactor | null = null;
   private isConnected: boolean = false;
@@ -135,26 +247,26 @@ export class ReactorEngine implements IVideoEngine {
       await waitForReady;
       console.log('[REACTOR ENGINE] Connection ready. Staging base concept image and prompt...');
 
-      // 5. Upload base concept image to anchor LingBot neural generation (Image-to-World)
+      // 5. Upload base concept image to satisfy LingBot mandatory reference image requirement
       try {
-        let file: File | null = null;
+        let file: File;
         if (baseImage && (baseImage.startsWith('data:image/jpeg') || baseImage.startsWith('data:image/png') || baseImage.startsWith('http'))) {
-          console.log('[REACTOR ENGINE] Real concept photo detected, uploading to Reactor session...');
+          console.log('[REACTOR ENGINE] Using Imagen 3 photo anchor...');
           const res = await fetch(baseImage);
           const blob = await res.blob();
           file = new File([blob], 'seed.jpg', { type: 'image/jpeg' });
+        } else {
+          console.log('[REACTOR ENGINE] Generating high-definition architectural seed canvas for LingBot...');
+          file = await generatePhotographicSeed(prompt);
         }
 
-        if (file) {
-          const imageRef = await this.client.uploadFile(file);
-          console.log('✅ BASE CONCEPT PHOTO UPLOADED TO REACTOR:', imageRef);
-          await this.client.sendCommand('set_image', { image: imageRef });
-          console.log('[REACTOR ENGINE] Sent set_image with photo anchor.');
-        } else {
-          console.log('[REACTOR ENGINE] Generating direct 3D neural simulation from styled prompt...');
-        }
+        const imageRef = await this.client.uploadFile(file);
+        console.log('✅ SEED IMAGE UPLOADED TO REACTOR:', imageRef);
+
+        await this.client.sendCommand('set_image', { image: imageRef });
+        console.log('[REACTOR ENGINE] Sent set_image reference anchor to LingBot.');
       } catch (uploadErr) {
-        console.error('❌ SEED IMAGE UPLOAD FAILED (Proceeding with text simulation):', uploadErr);
+        console.error('❌ SEED IMAGE UPLOAD ERROR:', uploadErr);
       }
 
       const styledPrompt = applyMasterTheme(prompt);
