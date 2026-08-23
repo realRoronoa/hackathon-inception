@@ -10,9 +10,10 @@ import {
   Clock,
   Compass,
   Sparkles,
-  User,
   Radar,
   Radio,
+  Footprints,
+  Gauge,
 } from 'lucide-react';
 import { MockAudioEngine } from '../engine/mockAudioEngine';
 import type { IAudioEngine } from '../engine/audioEngine';
@@ -29,17 +30,7 @@ interface ActiveSimulationProps {
   onExit: () => void;
 }
 
-// Preset Dynamic Video Streams for 3rd Person Background Exploration
-const DYNAMIC_VIDEO_FEEDS: Record<string, string> = {
-  earbuds: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  kitchen: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  ev: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  flagship: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  cyberpunk: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-};
-
-const DEFAULT_VIDEO_FEED =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4';
+const DEFAULT_STREET_FEED = 'https://vjs.zencdn.net/v/oceans.mp4';
 
 export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   prompt: initialPrompt,
@@ -51,45 +42,44 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const [activeImage, setActiveImage] = useState<string>(
     researchData?.base_image || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1280&q=80'
   );
-  
-  // Resolve Dynamic 2D Video Feed URL (Pollinations Video / High-Def Neural Loop)
-  const getVideoFeedUrl = (query: string): string => {
-    const norm = query.toLowerCase();
-    for (const [key, url] of Object.entries(DYNAMIC_VIDEO_FEEDS)) {
-      if (norm.includes(key)) return url;
-    }
-    return `https://gen.pollinations.ai/video/${encodeURIComponent(query)}?width=1280&height=720&nologo=true`;
-  };
 
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string>(() => getVideoFeedUrl(effectivePrompt));
+  const [activeVideoUrl] = useState<string>(DEFAULT_STREET_FEED);
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
 
-  // Animated AR Scan Reticle
+  // Animated AR Scan Reticle on Connection
   const [showScanReticle, setShowScanReticle] = useState(true);
 
   // Active Control Direction States
   const [activeMovement, setActiveMovement] = useState<MovementDirection>('idle');
   const [activeLook, setActiveLook] = useState<LookDirection>('idle');
 
-  // 3rd Person Character & Camera Spatial Kinematics (Spring Physics Interpolation)
-  const avatarRef = useRef({
+  // Walking Speed Telemetry (km/h)
+  const [walkingSpeed, setWalkingSpeed] = useState<number>(0);
+
+  // 3rd Person Character & Camera Kinematics State
+  const simState = useRef({
     charX: 0,
     charY: 0,
-    charRotation: 0,
+    walkCycle: 0,
+    isWalking: false,
+    charFacingAngle: 0,
     camPanX: 0,
     camPanY: 0,
-    camZoom: 1.08,
+    camZoom: 1.05,
     targetPanX: 0,
     targetPanY: 0,
-    targetZoom: 1.08,
+    targetZoom: 1.05,
     tiltX: 0,
     tiltY: 0,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const avatarVisualRef = useRef<HTMLDivElement>(null);
+  const backdropImgRef = useRef<HTMLImageElement>(null);
+  const characterRef = useRef<HTMLDivElement>(null);
+  const leftLegRef = useRef<HTMLDivElement>(null);
+  const rightLegRef = useRef<HTMLDivElement>(null);
 
   // In-Game Directive Console State
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false);
@@ -120,11 +110,16 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   const handleMovementChange = useCallback((direction: MovementDirection) => {
     setActiveMovement(direction);
     if (direction === 'forward') {
-      setDistanceKm((prev) => prev + 0.06);
+      setDistanceKm((prev) => prev + 0.05);
+      setWalkingSpeed(5.4);
     } else if (direction === 'backward') {
       setDistanceKm((prev) => prev + 0.02);
+      setWalkingSpeed(3.1);
     } else if (direction === 'left' || direction === 'right') {
-      setDistanceKm((prev) => prev + 0.04);
+      setDistanceKm((prev) => prev + 0.03);
+      setWalkingSpeed(4.2);
+    } else {
+      setWalkingSpeed(0);
     }
   }, []);
 
@@ -139,65 +134,85 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     onLookChange: handleLookChange,
   });
 
-  // 60FPS 3rd-Person Kinematic Camera & Avatar Motion Loop
+  // 60FPS 3rd-Person Street Walking & Camera Kinematics Loop
   useEffect(() => {
     let animId: number;
 
-    const update3rdPersonKinematics = () => {
-      const a = avatarRef.current;
+    const updateSimulationLoop = () => {
+      const s = simState.current;
 
-      // 1. Calculate 3rd-Person Locomotion & Character Heading
+      // 1. Process 3rd-Person Locomotion
+      s.isWalking = activeMovement !== 'idle' || activeLook !== 'idle';
+
       if (activeMovement === 'forward') {
-        a.targetZoom = Math.min(a.targetZoom + 0.007, 2.4);
-        a.charRotation = 0; // facing forward
+        s.targetZoom = Math.min(s.targetZoom + 0.006, 2.2);
+        s.charFacingAngle = 0;
+        s.walkCycle += 0.22;
       } else if (activeMovement === 'backward') {
-        a.targetZoom = Math.max(a.targetZoom - 0.007, 1.0);
-        a.charRotation = 180; // facing camera
+        s.targetZoom = Math.max(s.targetZoom - 0.006, 1.0);
+        s.charFacingAngle = 180;
+        s.walkCycle += 0.16;
       } else if (activeMovement === 'left') {
-        a.targetPanX = Math.min(a.targetPanX + 6, 320);
-        a.charRotation = -45; // leaning left
+        s.targetPanX = Math.min(s.targetPanX + 5, 260);
+        s.charFacingAngle = -45;
+        s.walkCycle += 0.18;
       } else if (activeMovement === 'right') {
-        a.targetPanX = Math.max(a.targetPanX - 6, -320);
-        a.charRotation = 45; // leaning right
+        s.targetPanX = Math.max(s.targetPanX - 5, -260);
+        s.charFacingAngle = 45;
+        s.walkCycle += 0.18;
       }
 
       if (activeLook === 'left') {
-        a.targetPanX = Math.min(a.targetPanX + 5, 340);
-        a.tiltY = Math.min(a.tiltY + 0.25, 9);
+        s.targetPanX = Math.min(s.targetPanX + 4, 300);
+        s.tiltY = Math.min(s.tiltY + 0.2, 8);
       } else if (activeLook === 'right') {
-        a.targetPanX = Math.max(a.targetPanX - 5, -340);
-        a.tiltY = Math.max(a.tiltY - 0.25, -9);
+        s.targetPanX = Math.max(s.targetPanX - 4, -300);
+        s.tiltY = Math.max(s.tiltY - 0.2, -8);
       } else if (activeLook === 'up') {
-        a.targetPanY = Math.min(a.targetPanY + 4, 200);
-        a.tiltX = Math.max(a.tiltX - 0.25, -7);
+        s.targetPanY = Math.min(s.targetPanY + 3, 160);
+        s.tiltX = Math.max(s.tiltX - 0.2, -6);
       } else if (activeLook === 'down') {
-        a.targetPanY = Math.max(a.targetPanY - 4, -200);
-        a.tiltX = Math.min(a.tiltX + 0.25, 7);
+        s.targetPanY = Math.max(s.targetPanY - 3, -160);
+        s.tiltX = Math.min(s.tiltX + 0.2, 6);
       } else {
-        a.tiltX *= 0.92;
-        a.tiltY *= 0.92;
+        s.tiltX *= 0.92;
+        s.tiltY *= 0.92;
       }
 
-      // 2. Smooth Lerp Camera & 3rd-Person Framing Interpolation
-      a.camPanX += (a.targetPanX - a.camPanX) * 0.11;
-      a.camPanY += (a.targetPanY - a.camPanY) * 0.11;
-      a.camZoom += (a.targetZoom - a.camZoom) * 0.11;
+      // 2. Smooth Lerp Camera Interpolation
+      s.camPanX += (s.targetPanX - s.camPanX) * 0.12;
+      s.camPanY += (s.targetPanY - s.camPanY) * 0.12;
+      s.camZoom += (s.targetZoom - s.camZoom) * 0.12;
 
-      // 3. Apply 3rd-Person Camera Transform to Environment Video Feed
+      // 3. Apply Camera Transforms to Background Street Layers
+      const transformStyle = `translate3d(${s.camPanX.toFixed(2)}px, ${s.camPanY.toFixed(2)}px, 0) scale(${s.camZoom.toFixed(3)}) rotateX(${s.tiltX.toFixed(2)}deg) rotateY(${s.tiltY.toFixed(2)}deg)`;
+      
+      if (backdropImgRef.current) {
+        backdropImgRef.current.style.transform = transformStyle;
+      }
       if (videoRef.current) {
-        videoRef.current.style.transform = `translate3d(${a.camPanX.toFixed(2)}px, ${a.camPanY.toFixed(2)}px, 0) scale(${a.camZoom.toFixed(3)}) rotateX(${a.tiltX.toFixed(2)}deg) rotateY(${a.tiltY.toFixed(2)}deg)`;
+        videoRef.current.style.transform = transformStyle;
       }
 
-      // 4. Update 3rd-Person Operator Avatar Stance & Leaning
-      if (avatarVisualRef.current) {
-        const avatarOffset = (a.camPanX * -0.18).toFixed(1);
-        avatarVisualRef.current.style.transform = `translate3d(${avatarOffset}px, 0, 0) rotate(${a.charRotation}deg)`;
+      // 4. Animate 3rd-Person Character Walking Motion & Step Strides
+      if (characterRef.current) {
+        // Vertical step bobbing
+        const stepBob = s.isWalking ? Math.sin(s.walkCycle * 2) * 6 : Math.sin(Date.now() * 0.002) * 2;
+        const charLateral = (s.camPanX * -0.15).toFixed(1);
+        characterRef.current.style.transform = `translate3d(${charLateral}px, ${stepBob.toFixed(1)}px, 0) rotate(${s.charFacingAngle}deg)`;
+
+        // Leg stride swinging
+        if (leftLegRef.current && rightLegRef.current) {
+          const legAngle = s.isWalking ? Math.sin(s.walkCycle) * 28 : 0;
+          leftLegRef.current.style.transform = `rotate(${legAngle.toFixed(1)}deg)`;
+          rightLegRef.current.style.transform = `rotate(${(-legAngle).toFixed(1)}deg)`;
+        }
       }
 
-      animId = requestAnimationFrame(update3rdPersonKinematics);
+      animId = requestAnimationFrame(updateSimulationLoop);
     };
 
-    animId = requestAnimationFrame(update3rdPersonKinematics);
+    animId = requestAnimationFrame(updateSimulationLoop);
     return () => cancelAnimationFrame(animId);
   }, [activeMovement, activeLook]);
 
@@ -211,8 +226,8 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       if (!isSubscribed) return;
       setIsStreamReady(true);
       audioEngine.startAmbient();
-      audioEngine.playNarration(`3rd Person Telemetry Locked on ${effectivePrompt.split(',')[0]}`);
-    }, 400);
+      audioEngine.playNarration(`3rd Person Street Navigation Locked on ${effectivePrompt.split(',')[0]}`);
+    }, 350);
 
     return () => {
       isSubscribed = false;
@@ -271,15 +286,15 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       canvas.width = 1280;
       canvas.height = 720;
       const ctx = canvas.getContext('2d');
-      if (ctx && videoRef.current) {
-        ctx.drawImage(videoRef.current, 0, 0, 1280, 720);
+      if (ctx && backdropImgRef.current) {
+        ctx.drawImage(backdropImgRef.current, 0, 0, 1280, 720);
 
         // Watermark 3rd Person Telemetry HUD
         ctx.fillStyle = 'rgba(9, 12, 17, 0.85)';
         ctx.fillRect(20, 650, 520, 50);
         ctx.fillStyle = '#4FD8E8';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(`INCEPTION 3RD PERSON POV // ${currentPrompt.slice(0, 40)}...`, 35, 680);
+        ctx.fillText(`INCEPTION 3RD PERSON STREET EXPLORER // ${currentPrompt.slice(0, 35)}...`, 35, 680);
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
         const existing = JSON.parse(localStorage.getItem('inception_snapshots') || '[]');
@@ -288,7 +303,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           timestamp: Date.now(),
           dataUrl: dataUrl,
           sectorPrompt: currentPrompt,
-          cameraVector: `3rd-Person Zoom ${(avatarRef.current.camZoom * 100).toFixed(0)}%`,
+          cameraVector: `3rd Person Zoom ${(simState.current.camZoom * 100).toFixed(0)}%`,
         };
         localStorage.setItem('inception_snapshots', JSON.stringify([snapshotItem, ...existing]));
       }
@@ -368,7 +383,6 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
           setActiveImage(payload.base_image);
         }
       }
-      setActiveVideoUrl(getVideoFeedUrl(directive));
     } catch (err) {
       console.warn('[3RD PERSON SIMULATION] Directive generation notice:', err);
     } finally {
@@ -386,9 +400,9 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
   };
 
   const hudInsights = researchData?.hud_insights || [
-    'Spatial Vector: 4.8m/s Flow',
-    'Acoustic Clearance: 18dB Damped',
-    'Neural Alignment: 99.4% Active',
+    'Street Density: 88.4% Optimal',
+    'Optical Alignment: 99.8% Calibrated',
+    'Locomotion Rate: 5.4 km/h Active',
   ];
 
   return (
@@ -396,63 +410,96 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 1. Loading Screen */}
       {!isStreamReady && <LoadingScreen prompt={currentPrompt} />}
 
-      {/* 2. Interactive 3rd-Person 2D Video Viewport Stream Container */}
+      {/* 2. Interactive 3rd-Person Dynamic Environment Viewport */}
       <div
         ref={containerRef}
         className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-950 flex items-center justify-center cursor-grab active:cursor-grabbing"
       >
+        {/* Layer A: High-Resolution Street Backdrop */}
+        <img
+          ref={backdropImgRef}
+          src={activeImage}
+          alt="Street Environment"
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-[opacity] duration-700 [transform-origin:center_center] [will-change:transform]"
+          style={{
+            opacity: isStreamReady ? 1 : 0,
+          }}
+        />
+
+        {/* Layer B: Animated Ambient Video Atmosphere Overlay */}
         <video
           ref={videoRef}
           src={activeVideoUrl}
-          poster={activeImage}
           autoPlay
           loop
           muted
           playsInline
-          className="w-full h-full object-cover select-none pointer-events-none transition-[opacity] duration-700 [transform-origin:center_center] [will-change:transform]"
-          style={{
-            opacity: isStreamReady ? 1 : 0,
-          }}
-          onError={() => {
-            if (activeVideoUrl !== DEFAULT_VIDEO_FEED) {
-              setActiveVideoUrl(DEFAULT_VIDEO_FEED);
-            }
-          }}
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none mix-blend-screen opacity-35 [transform-origin:center_center] [will-change:transform]"
         />
       </div>
 
-      {/* 3. Authentic 3rd-Person Cyber Operator / Avatar Frame Overlay */}
+      {/* 3. Authentic 3rd-Person Walking Character Silhouette with Animated Strides */}
       {isStreamReady && (
-        <div className="absolute inset-x-0 bottom-16 z-25 pointer-events-none flex flex-col items-center justify-end">
+        <div className="absolute inset-x-0 bottom-12 z-25 pointer-events-none flex flex-col items-center justify-end">
           <div
-            ref={avatarVisualRef}
-            className="relative flex flex-col items-center transition-transform duration-200 ease-out"
+            ref={characterRef}
+            className="relative flex flex-col items-center [transform-origin:bottom_center]"
           >
-            {/* Cyber Drone / Operator Avatar Silhouette */}
-            <div className="relative w-16 h-16 rounded-full border-2 border-cyan-400/80 bg-zinc-950/90 flex items-center justify-center shadow-[0_0_35px_rgba(79,216,232,0.6)]">
-              <User className="w-8 h-8 text-cyan-300" />
-              {/* Dynamic Propulsion Thruster Glow on Movement */}
-              <div
-                className={`absolute -bottom-2 w-8 h-2 rounded-full bg-cyan-400 blur-sm transition-opacity duration-150 ${
-                  activeMovement !== 'idle' ? 'opacity-100 animate-pulse scale-125' : 'opacity-40'
-                }`}
-              />
+            {/* Cyber Operator Torso & Holographic Cyber Jacket */}
+            <div className="relative flex flex-col items-center">
+              {/* Head & Cyber Visor */}
+              <div className="w-9 h-9 rounded-full bg-zinc-900 border-2 border-cyan-400 flex items-center justify-center shadow-[0_0_20px_#4FD8E8]">
+                <div className="w-5 h-2 rounded bg-cyan-400 shadow-[0_0_10px_#4FD8E8]" />
+              </div>
+              
+              {/* Armored Cyber Torso */}
+              <div className="w-14 h-18 bg-zinc-950 border border-cyan-500/60 rounded-xl mt-1 flex items-center justify-center shadow-2xl relative">
+                <div className="w-8 h-10 border border-cyan-400/40 rounded bg-cyan-950/40 flex items-center justify-center">
+                  <span className="text-[8px] text-cyan-300 font-bold tracking-widest">3RD</span>
+                </div>
+                {/* Tactical Backpack Luminescence */}
+                <div className="absolute -top-1 w-3 h-3 rounded-full bg-cyan-400/80 animate-ping" />
+              </div>
+
+              {/* Animated Walking Strides (Dual Kinetic Legs) */}
+              <div className="flex gap-3 mt-0.5">
+                <div
+                  ref={leftLegRef}
+                  className="w-3.5 h-12 bg-zinc-900 border border-cyan-500/50 rounded-b-lg [transform-origin:top_center] transition-transform"
+                >
+                  <div className="w-full h-2.5 bg-cyan-400 rounded-b-lg mt-9 shadow-[0_0_10px_#4FD8E8]" />
+                </div>
+                <div
+                  ref={rightLegRef}
+                  className="w-3.5 h-12 bg-zinc-900 border border-cyan-500/50 rounded-b-lg [transform-origin:top_center] transition-transform"
+                >
+                  <div className="w-full h-2.5 bg-cyan-400 rounded-b-lg mt-9 shadow-[0_0_10px_#4FD8E8]" />
+                </div>
+              </div>
             </div>
-            
+
+            {/* Dynamic Ground Holographic Ripple on Walking */}
+            <div
+              className={`w-28 h-6 rounded-full bg-cyan-400/20 blur-md border border-cyan-400/50 transition-all duration-150 ${
+                activeMovement !== 'idle' ? 'scale-125 opacity-100 animate-pulse' : 'scale-90 opacity-40'
+              }`}
+            />
+
             {/* 3rd Person Orientation Reticle */}
-            <div className="mt-1.5 px-2 py-0.5 rounded bg-zinc-950/90 border border-cyan-500/40 text-[9px] font-mono text-cyan-300 tracking-wider shadow-lg">
-              OPERATOR // 3RD-PERSON POV
+            <div className="mt-2 px-3 py-0.5 rounded-full bg-zinc-950/90 border border-cyan-500/40 text-[9px] font-mono text-cyan-300 tracking-widest shadow-xl flex items-center gap-1.5">
+              <Footprints className="w-3 h-3 text-cyan-400" />
+              <span>3RD-PERSON STREET EXPLORER</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. Subtle Clean Edge Vignette & Perspective Grid */}
+      {/* 4. Subtle Clean Edge Vignette & Cyber Grid Overlay */}
       {isStreamReady && (
         <div
           className="absolute inset-0 pointer-events-none z-10"
           style={{
-            background: 'radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.7) 100%)',
+            background: 'radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.75) 100%)',
           }}
         />
       )}
@@ -460,14 +507,14 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
       {/* 5. Holographic AR Scan Reticle on Connection */}
       {isStreamReady && showScanReticle && (
         <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center transition-opacity duration-1000">
-          <div className="relative w-40 h-40 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
+          <div className="relative w-44 h-44 border border-cyan-500/40 rounded-full flex items-center justify-center animate-pulse">
             <div
               className="absolute inset-2 border border-dashed border-cyan-400/40 rounded-full animate-spin"
               style={{ animationDuration: '6s' }}
             />
-            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_15px_#4FD8E8]" />
-            <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/90 px-2.5 py-0.5 border border-cyan-500/40 rounded shadow-lg">
-              3RD-PERSON SPATIAL CAM LOCKED
+            <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_20px_#4FD8E8]" />
+            <div className="absolute -bottom-6 text-[10px] font-mono text-cyan-300 tracking-widest bg-zinc-950/90 px-3 py-1 border border-cyan-500/40 rounded shadow-xl">
+              3RD-PERSON TELEMETRY LOCKED
             </div>
           </div>
         </div>
@@ -508,12 +555,19 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                 </span>
                 <span className="text-zinc-200 font-semibold tracking-wider text-[11px]">
-                  3RD PERSON 2D VIDEO
+                  3RD PERSON STREET POV
                 </span>
                 <span className="text-zinc-600">|</span>
                 <span className="text-emerald-400 font-mono text-[11px] font-bold">
                   0 CREDITS (FREE)
                 </span>
+              </div>
+
+              {/* Speedometer Telemetry */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 backdrop-blur-md text-xs text-zinc-300 shadow-2xl">
+                <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-mono font-bold text-cyan-300">{walkingSpeed.toFixed(1)}</span>
+                <span className="text-[10px] text-zinc-500">KM/H</span>
               </div>
 
               {/* Session Countdown Pill */}
@@ -584,7 +638,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
 
             <div className="space-y-2">
               <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
-                Spatial Coordinates
+                Street Coordinates
               </span>
               {hudInsights.map((insight, idx) => (
                 <div
@@ -600,7 +654,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500">
               <div className="flex items-center gap-1.5 text-cyan-400 font-mono">
                 <Radio className="w-3 h-3 animate-pulse" />
-                <span>POV: 3RD PERSON</span>
+                <span>MODE: ACTIVE WALKING</span>
               </div>
               <span className="text-cyan-400 font-mono">60 FPS</span>
             </div>
@@ -613,7 +667,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                 <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                   <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold uppercase tracking-wider">
                     <Terminal className="w-4 h-4" />
-                    <span>3rd-Person World Directive Terminal</span>
+                    <span>3rd-Person Street Directive Terminal</span>
                   </div>
                   <kbd className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-400 border border-zinc-700">
                     [TAB] CLOSE
@@ -621,7 +675,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400">
-                  Update environment directive live — Powered by Pollinations (0 Credits):
+                  Morph street environment live — Powered by Pollinations (0 Credits):
                 </p>
 
                 <form onSubmit={handleConsoleSubmit} className="flex gap-2">
@@ -630,7 +684,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                     type="text"
                     value={consoleInput}
                     onChange={(e) => setConsoleInput(e.target.value)}
-                    placeholder="e.g. Add glowing anime neon billboards and rainy reflections..."
+                    placeholder="e.g. Add rain reflections, ramen stalls, and flying neon signs..."
                     className="flex-1 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400"
                     autoFocus
                     disabled={isUpdatingDirective}
@@ -658,7 +712,7 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
             <div className="max-w-lg p-3.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 backdrop-blur-md text-xs space-y-1 shadow-2xl">
               <div className="flex items-center gap-1.5 text-cyan-400 text-[10px] uppercase tracking-wider font-semibold">
                 <Sparkles className="w-3 h-3" />
-                <span>Active 3rd-Person Dynamic Simulation</span>
+                <span>Active 3rd-Person Street Walk</span>
               </div>
               <p className="text-zinc-200 text-xs font-light tracking-wide line-clamp-2">
                 {currentPrompt}
@@ -681,10 +735,10 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
                 <div className="flex items-center gap-1">
                   <Compass className="w-3.5 h-3.5 text-cyan-400" />
                   <span>WASD:</span>
-                  <span className="font-bold text-zinc-200">MOVE 3RD-POV</span>
+                  <span className="font-bold text-zinc-200">WALK STREET</span>
                 </div>
                 <span className="text-zinc-700">|</span>
-                <span className="hidden md:inline text-emerald-400 font-medium">FREE 2D VIDEO</span>
+                <span className="hidden md:inline text-emerald-400 font-medium">3RD PERSON POV</span>
               </div>
             </div>
           </div>
