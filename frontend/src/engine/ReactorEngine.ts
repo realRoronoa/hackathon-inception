@@ -163,12 +163,35 @@ async function generatePhotographicSeed(prompt: string): Promise<File> {
   });
 }
 
+// Global session tracker and aggressive browser lifecycle hooks to kill phantom GPU sessions
+let globalActiveSession: ReactorEngine | null = null;
+let globalIsConnectingLock: boolean = false;
+
+if (typeof window !== 'undefined') {
+  const handleAggressiveTeardown = () => {
+    if (globalActiveSession) {
+      console.log('🛑 [REACTOR ENGINE] Aggressive page unload teardown triggered.');
+      globalActiveSession.disconnect();
+    }
+  };
+  window.addEventListener('beforeunload', handleAggressiveTeardown);
+  window.addEventListener('pagehide', handleAggressiveTeardown);
+}
+
 export class ReactorEngine implements IVideoEngine {
   private client: Reactor | null = null;
   private isConnected: boolean = false;
   private lastMovement: string = 'idle';
   private lastLookHorizontal: string = 'idle';
   private lastLookVertical: string = 'idle';
+
+  public static forceTeardownAll(): void {
+    if (globalActiveSession) {
+      globalActiveSession.disconnect();
+      globalActiveSession = null;
+    }
+    globalIsConnectingLock = false;
+  }
 
   public async initialize(
     prompt: string,
@@ -177,10 +200,26 @@ export class ReactorEngine implements IVideoEngine {
   ): Promise<void> {
     const apiKey = import.meta.env.VITE_REACTOR_API_KEY || '';
 
+    // 1. Strict Singleton Connection Guard (Blocks React StrictMode double-mounts)
+    if (globalIsConnectingLock) {
+      console.warn('[REACTOR ENGINE] Connection already in progress, aborting duplicate concurrent connection attempt.');
+      throw new Error('Simulation initialization already in progress.');
+    }
+
+    if (globalActiveSession && globalActiveSession !== this) {
+      console.warn('[REACTOR ENGINE] Tearing down lingering previous session to prevent ghost GPU allocation...');
+      globalActiveSession.disconnect();
+      globalActiveSession = null;
+    }
+
+    globalIsConnectingLock = true;
+    globalActiveSession = this;
+
     console.log(`[REACTOR ENGINE] Exchanging API key and initializing Reactor client with model: "reactor/lingbot"...`);
 
     if (!baseImage || baseImage.startsWith('data:image/svg')) {
       console.warn('[REACTOR ENGINE] Aborting GPU session: Valid base concept image is required.');
+      globalIsConnectingLock = false;
       throw new Error('Simulation Aborted: No valid Imagen 3 photo generated. GPU session canceled to protect Reactor credits.');
     }
 
@@ -323,8 +362,11 @@ export class ReactorEngine implements IVideoEngine {
         this.client.on('trackReceived', onLateTrack);
       }
     } catch (error) {
-      console.error('[REACTOR ENGINE] Failed to initialize Reactor stream:', error);
+      console.error('[REACTOR ENGINE] Failed to initialize Reactor stream (Force disconnecting GPU session):', error);
+      this.disconnect();
       throw error;
+    } finally {
+      globalIsConnectingLock = false;
     }
   }
 
@@ -415,6 +457,10 @@ export class ReactorEngine implements IVideoEngine {
       }
       this.client = null;
     }
+    if (globalActiveSession === this) {
+      globalActiveSession = null;
+    }
+    globalIsConnectingLock = false;
     this.isConnected = false;
   }
 
