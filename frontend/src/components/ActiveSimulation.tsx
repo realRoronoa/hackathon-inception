@@ -360,42 +360,38 @@ export const ActiveSimulation: React.FC<ActiveSimulationProps> = ({
     const el = videoRef.current;
     if (!el || !streamSource) return;
 
-    console.log('🎥 ONTRACK FIRED. STREAM SOURCE:', streamSource);
+    console.log('🎥 BINDING STREAM SOURCE TO VIDEO:', streamSource);
 
-    const attach = (reset = false) => {
-      try {
-        if (reset) {
-          el.srcObject = null;
-        }
-        if (streamSource instanceof MediaStream) {
-          el.srcObject = streamSource;
-          el.src = '';
-        } else if (typeof streamSource === 'string') {
-          el.srcObject = null;
-          el.src = streamSource;
-        }
+    const playVideo = () => {
+      if (el) {
+        el.defaultMuted = true;
         el.muted = true;
         el.playsInline = true;
         el.play().catch((playErr) => {
-          console.warn('[VIDEO ELEMENT] Autoplay play() rejected (user gesture may be needed):', playErr);
+          console.warn('[VIDEO ELEMENT] Play attempt notice:', playErr);
         });
-      } catch (err) {
-        console.warn('[VIDEO ELEMENT] Attach error:', err);
       }
     };
 
-    attach(false);
-
     if (streamSource instanceof MediaStream) {
+      el.srcObject = streamSource;
+      el.src = '';
+      playVideo();
+
       const tracks = streamSource.getTracks();
-      const onUnmute = () => {
-        console.log('🎥 WEBRTC TRACK UNMUTED - RENDERING INCOMING VIDEO STREAM');
-        attach(true);
-      };
-      for (const track of tracks) track.addEventListener('unmute', onUnmute);
+      for (const track of tracks) {
+        track.enabled = true;
+        track.addEventListener('unmute', playVideo);
+      }
       return () => {
-        for (const track of tracks) track.removeEventListener('unmute', onUnmute);
+        for (const track of tracks) {
+          track.removeEventListener('unmute', playVideo);
+        }
       };
+    } else if (typeof streamSource === 'string') {
+      el.srcObject = null;
+      el.src = streamSource;
+      playVideo();
     }
   }, [streamSource]);
 

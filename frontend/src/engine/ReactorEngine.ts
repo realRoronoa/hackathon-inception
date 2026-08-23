@@ -90,7 +90,14 @@ export class ReactorEngine implements IVideoEngine {
           console.log('✅ MAIN VIDEO STREAM ACTIVE AND ENABLED');
           this.isConnected = true;
 
-          activeMediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
+          const mediaStream = stream && stream.getTracks().length > 0 ? stream : new MediaStream([track]);
+          activeMediaStream = mediaStream;
+          onStreamReady(mediaStream);
+
+          track.onunmute = () => {
+            console.log(`🎥 WEBRTC TRACK UNMUTED EVENT: "${name}"`);
+            onStreamReady(mediaStream);
+          };
         }
       });
 
